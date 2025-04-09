@@ -1,5 +1,11 @@
-import { Stack } from "expo-router";
+import { registerRootComponent } from "expo";
+import BottomTabNavigator from "./BottomTabNavigator";
 
-export default function RootLayout() {
-  return <Stack />;
+function RootLayout() {
+  return <BottomTabNavigator />;
 }
+
+export default RootLayout;
+
+// Register the root component
+registerRootComponent(RootLayout);
