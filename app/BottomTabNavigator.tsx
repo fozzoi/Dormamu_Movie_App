@@ -2,12 +2,11 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import SearchScreen from '../app/index';
 import History from '../app/history';
 import WatchlistScreen from '../app/watchlist';
 import Explore from './Explore';
 import Index from '../app/index';
-
+import WatchListPage from '../app/WatchListPage';
 const Tab = createBottomTabNavigator();
 
 const BottomTabNavigator = () => {
@@ -36,7 +35,7 @@ const BottomTabNavigator = () => {
     > 
       <Tab.Screen name="Search" component={Index} />
       <Tab.Screen name="History" component={History} />
-      <Tab.Screen name="Watchlist" component={WatchlistScreen} />
+      <Tab.Screen name="Watchlist" component={WatchListPage} />
       <Tab.Screen name="Explore" component={Explore} />
     </Tab.Navigator>
   );

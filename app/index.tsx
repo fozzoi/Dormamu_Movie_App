@@ -1,9 +1,11 @@
 import React, { useState } from "react";
-import { View, StyleSheet, Alert, Linking, useColorScheme, StatusBar, ScrollView, Platform } from "react-native";
-import { Provider as PaperProvider, TextInput, Button, Card, Text, ActivityIndicator, MD3DarkTheme, MD3LightTheme, Chip } from "react-native-paper";
+import { View, StyleSheet, Alert, Linking, useColorScheme, 
+  StatusBar, ScrollView, Platform } from "react-native";
+import { Provider as PaperProvider, TextInput, Button, Card, Text,
+   ActivityIndicator, MD3DarkTheme, MD3LightTheme, Chip } from "react-native-paper";
 import axios from "axios";
 import * as FileSystem from "expo-file-system";
-import * as IntentLauncher from "expo-intent-launcher"; // Import IntentLauncher for Android-specific file handling
+import * as IntentLauncher from "expo-intent-launcher"; // Android-specific file handling
 import ErrorBoundary from "./ErrorBoundary";
 import { useNavigation } from "expo-router";
 import { useRouter } from "expo-router";
@@ -72,6 +74,7 @@ export default function Index() {
   const [query, setQuery] = useState<string>("");
   const [results, setResults] = useState<Result[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  // Initialize filter type automatically (default "movie")
   const [filters, setFilters] = useState<FilterOptions>({
     source: [],
     type: 'movie'
@@ -258,11 +261,10 @@ export default function Index() {
       // Fetch results from The Pirate Bay
       const pirateBayResults = await fetchPirateBayResults(query);
       
-      // Fetch results from RARBG (example)
-      const rarbgResults = await fetchRARBGResults(query);
+      // (Additional sources such as RARBG could be added here)
       
       // Combine and sort all results
-      const combinedResults = [...ytsResults, ...pirateBayResults, ...rarbgResults];
+      const combinedResults = [...ytsResults, ...pirateBayResults];
       
       // Sort by quality score and relevance
       const sortedResults = combinedResults.sort((a, b) => {
@@ -285,7 +287,13 @@ export default function Index() {
         // Finally, sort by name
         return a.name.localeCompare(b.name);
       });
-
+      
+      // Automatically determine content type based on first result
+      if (sortedResults.length > 0) {
+        const firstIsSeries = /(S\d{1,2}|Season\s*\d{1,2}|E\d{1,2}|Episode\s*\d{1,2})/i.test(sortedResults[0].name);
+        setFilters(prev => ({ ...prev, type: firstIsSeries ? 'series' : 'movie' }));
+      }
+      
       setResults(sortedResults);
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -311,11 +319,6 @@ export default function Index() {
         }))
       );
     } catch (error) {
-      console.error("YTS Error:", error.message || error);
-      Alert.alert(
-        "YTS Error",
-        "Failed to fetch results from YTS. Please check your network or try again later."
-      );
       return [];
     }
   };
@@ -338,17 +341,6 @@ export default function Index() {
     }
   };
 
-  const fetchRARBGResults = async (query: string): Promise<Result[]> => {
-    try {
-      // Implementation for RARBG API
-      // This is just a placeholder - actual implementation would depend on the API
-      return [];
-    } catch (error) {
-      console.error("RARBG Error:", error);
-      return [];
-    }
-  };
-
   const handleDownload = async (url: string, name: string) => {
     if (!url) {
       Alert.alert("Error", "No download URL available.");
@@ -361,10 +353,10 @@ export default function Index() {
       const { uri } = await FileSystem.downloadAsync(url, filePath);
 
       if (Platform.OS === "android") {
-        const action = "android.intent.action.VIEW"; // Use the correct action string
+        const action = "android.intent.action.VIEW";
         const params = {
           data: uri,
-          flags: 1, // Use the integer value for FLAG_GRANT_READ_URI_PERMISSION (1)
+          flags: 1,
           type: "application/x-bittorrent",
         };
         await IntentLauncher.startActivityAsync(action, params);
@@ -382,13 +374,7 @@ export default function Index() {
     }
   };
 
-
-  const handleTypeChange = (value: 'movie' | 'series') => {
-    setFilters(prev => ({
-      ...prev,
-      type: value
-    }));
-  };
+  // (Removed handleTypeChange since content type is automated)
 
   const handleViewEpisodes = (series: SeriesInfo) => {
     router.push({
@@ -402,7 +388,7 @@ export default function Index() {
   const renderSeriesCard = (series: SeriesInfo) => (
     <Card 
       key={series.name} 
-      style={[styles.card, { backgroundColor: '#1e1e1e' }]} // Dark background
+      style={[styles.card, { backgroundColor: '#1e1e1e' }]}
     >
       <Card.Title 
         title={series.name}
@@ -465,25 +451,7 @@ export default function Index() {
             {/* Heading */}
             <Text style={styles.heading}>Torrent Search</Text>
 
-            {/* Content Type Selector */}
-            <View style={styles.typeContainer}>
-              <View style={styles.segmentedContainer}>
-                <Button 
-                  mode={filters.type === 'movie' ? 'contained' : 'outlined'}
-                  onPress={() => handleTypeChange('movie')}
-                  style={styles.segmentButton}
-                >
-                  Movies
-                </Button>
-                <Button
-                  mode={filters.type === 'series' ? 'contained' : 'outlined'}
-                  onPress={() => handleTypeChange('series')}
-                  style={styles.segmentButton}
-                >
-                  TV Series
-                </Button>
-              </View>
-            </View>
+            {/* Removed content type selector UI; content type now automates based on results */}
 
             {/* Search Bar and Button */}
             <View style={styles.searchContainer}>
@@ -498,24 +466,6 @@ export default function Index() {
                 Search
               </Button>
             </View>
-
-            {/* Filter Options - Sources only */}
-            {/* <View style={styles.filterContainer}>
-              <Text>Sources:</Text>
-              <View style={styles.chipContainer}>
-                {availableSources.map(source => (
-                  <Chip
-                    key={source}
-                    selected={filters.source.includes(source)}
-                    onPress={() => toggleSource(source)}
-                    style={styles.chip}
-                  >
-                    {source}
-                  </Chip>
-                ))}
-              </View>
-            </View> */}
-
             {/* Results */}
             {loading ? (
               <ActivityIndicator animating={true} size="large" />

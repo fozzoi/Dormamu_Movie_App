@@ -1,11 +1,10 @@
 import { registerRootComponent } from "expo";
-import BottomTabNavigator from "./BottomTabNavigator";
+import AppNavigator from "./AppNavigator";
 
 function RootLayout() {
-  return <BottomTabNavigator />;
+  return <AppNavigator />;
 }
 
 export default RootLayout;
 
-// Register the root component
 registerRootComponent(RootLayout);
