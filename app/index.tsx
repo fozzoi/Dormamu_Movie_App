@@ -382,14 +382,6 @@ export default function Index() {
     }
   };
 
-  const toggleSource = (source: string) => {
-    setFilters(prev => ({
-      ...prev,
-      source: prev.source.includes(source)
-        ? prev.source.filter(s => s !== source)
-        : [...prev.source, source]
-    }));
-  };
 
   const handleTypeChange = (value: 'movie' | 'series') => {
     setFilters(prev => ({
@@ -475,7 +467,6 @@ export default function Index() {
 
             {/* Content Type Selector */}
             <View style={styles.typeContainer}>
-              <Text>Content Type:</Text>
               <View style={styles.segmentedContainer}>
                 <Button 
                   mode={filters.type === 'movie' ? 'contained' : 'outlined'}
@@ -509,7 +500,7 @@ export default function Index() {
             </View>
 
             {/* Filter Options - Sources only */}
-            <View style={styles.filterContainer}>
+            {/* <View style={styles.filterContainer}>
               <Text>Sources:</Text>
               <View style={styles.chipContainer}>
                 {availableSources.map(source => (
@@ -523,7 +514,7 @@ export default function Index() {
                   </Chip>
                 ))}
               </View>
-            </View>
+            </View> */}
 
             {/* Results */}
             {loading ? (
