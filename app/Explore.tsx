@@ -90,6 +90,9 @@ const ExplorePage = () => {
       style={styles.searchItem}
     >
       <Image source={{ uri: getImageUrl(item.poster_path) }} style={styles.sectionImage} />
+      <Text style={{ color: 'white', marginTop: 4 }}>
+        {item.title || item.name}
+      </Text>
     </TouchableOpacity>
   );
 
@@ -207,6 +210,7 @@ const styles = StyleSheet.create({
   sectionImage: {
     width: CARD_WIDTH,
     height: CARD_WIDTH * 1.5,
+    resizeMode: 'cover',
     borderRadius: 10,
     backgroundColor: '#333',
   },

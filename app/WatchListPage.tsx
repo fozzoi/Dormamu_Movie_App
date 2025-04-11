@@ -74,11 +74,13 @@ const WatchListPage = () => {
             }}
             style={styles.cardImage}
           />
-          <Card.Title
+          <Card.Title 
             title={item.title || item.name}
             subtitle={`Rating: ${item.vote_average}`}
-            titleNumberOfLines={1}
+            titleNumberOfLines={2}
             subtitleNumberOfLines={1}
+            titleStyle={{ color: 'gray', fontSize: 14 }}
+            subtitleStyle={{ color: 'gray',fontSize: 12 }}
           />
         </Card>
       </TouchableOpacity>

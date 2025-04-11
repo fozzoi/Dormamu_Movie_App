@@ -9,6 +9,9 @@ import * as IntentLauncher from "expo-intent-launcher"; // Android-specific file
 import ErrorBoundary from "./ErrorBoundary";
 import { useNavigation } from "expo-router";
 import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { RouteProp, useRoute } from "@react-navigation/native";
+import { useEffect } from "react";
 
 interface Movie {
   id: number;
@@ -63,6 +66,10 @@ interface SeriesInfo {
   qualities: string[];
 }
 
+type SearchRouteParamList = {
+  Search: { prefillQuery?: string };
+};
+
 export default function Index() {
   const navigation = useNavigation();
   const router = useRouter();
@@ -71,7 +78,9 @@ export default function Index() {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
 
+  const route = useRoute<RouteProp<SearchRouteParamList, 'Search'>>();
   const [query, setQuery] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [results, setResults] = useState<Result[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   // Initialize filter type automatically (default "movie")
@@ -166,7 +175,7 @@ export default function Index() {
 
   const applyFilters = (results: Result[]) => {
     // Filter by content type (movie/series)
-    let filteredResults = results.filter(item => {
+    let filteredResults = results.filter((item: Result) => {
       const isSeriesPattern = /(S\d{1,2}|Season\s*\d{1,2}|E\d{1,2}|Episode\s*\d{1,2})/i;
       const isSeries = isSeriesPattern.test(item.name);
       return filters.type === 'series' ? isSeries : !isSeries;
@@ -248,13 +257,38 @@ export default function Index() {
     return { score: 0, label: 'Unknown', color: '#9E9E9E' };
   };
 
-  const handleSearch = async () => {
+  const saveToHistory = async (query: string) => {
+    try {
+      const existing = await AsyncStorage.getItem("searchHistory");
+      const parsed = existing ? JSON.parse(existing) : [];
+
+      const newEntry = { query, date: new Date().toISOString() };
+
+      // Prevent duplicates (keep only latest)
+      const filtered = parsed.filter((item:any) => item.query.toLowerCase() !== query.toLowerCase());
+
+      filtered.push(newEntry);
+      await AsyncStorage.setItem("searchHistory", JSON.stringify(filtered));
+    } catch (error) {
+      console.error("Failed to save to history", error);
+    }
+  };
+
+  useEffect(() => {
+    if (route.params?.prefillQuery) {
+      setSearchQuery(route.params.prefillQuery);
+      handleSearch(route.params.prefillQuery);
+    }
+  }, [route.params]);
+
+  const handleSearch = async (query: string = searchQuery) => {
     if (!query.trim()) {
       Alert.alert("Error", "Please enter a search term.");
       return;
     }
     setLoading(true);
     try {
+      await saveToHistory(query); // Save the query to history
       // Fetch results from YTS
       const ytsResults = await fetchYTSResults(query);
       
@@ -374,8 +408,6 @@ export default function Index() {
     }
   };
 
-  // (Removed handleTypeChange since content type is automated)
-
   const handleViewEpisodes = (series: SeriesInfo) => {
     router.push({
       pathname: "/episodes",
@@ -457,12 +489,12 @@ export default function Index() {
             <View style={styles.searchContainer}>
               <TextInput
                 label="Search torrents..."
-                value={query}
-                onChangeText={setQuery}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
                 mode="outlined"
                 style={styles.input}
               />
-              <Button mode="contained" onPress={handleSearch} style={styles.button}>
+              <Button mode="contained" onPress={() => handleSearch(searchQuery)} style={styles.button}>
                 Search
               </Button>
             </View>
@@ -658,3 +690,4 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
 });
+

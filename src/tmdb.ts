@@ -11,6 +11,9 @@ export interface TMDBResult {
   poster_path: string | null;
   vote_average: number;
   media_type: "movie" | "tv";
+  release_date?: string;
+  first_air_date?: string;
+  
 }
 
 // Basic multi-search (existing function)
@@ -29,6 +32,8 @@ export const searchTMDB = async (query: string): Promise<TMDBResult[]> => {
       poster_path: item.poster_path,
       vote_average: item.vote_average || 0,
       media_type: item.media_type,
+      release_date: item.release_date || null,
+      first_air_date: item.first_air_date || null,
     }));
   } catch (error) {
     console.error("Error fetching data from TMDB:", error);
@@ -55,6 +60,8 @@ export const getTrendingMovies = async (): Promise<TMDBResult[]> => {
       poster_path: item.poster_path,
       vote_average: item.vote_average || 0,
       media_type: "movie",
+      release_date: item.release_date || null,
+      first_air_date: item.first_air_date || null,
     }));
   } catch (error) {
     console.error("Error fetching trending movies:", error);
@@ -75,6 +82,8 @@ export const getTrendingTV = async (): Promise<TMDBResult[]> => {
       poster_path: item.poster_path,
       vote_average: item.vote_average || 0,
       media_type: "tv",
+      release_date: item.release_date || null,
+      first_air_date: item.first_air_date || null,
     }));
   } catch (error) {
     console.error("Error fetching trending TV:", error);
@@ -95,6 +104,8 @@ export const getTopRated = async (): Promise<TMDBResult[]> => {
       poster_path: item.poster_path,
       vote_average: item.vote_average || 0,
       media_type: "movie",
+      release_date: item.release_date || null,
+      first_air_date: item.first_air_date || null,
     }));
   } catch (error) {
     console.error("Error fetching top rated movies:", error);
@@ -119,6 +130,8 @@ export const getRegionalMovies = async (region: string): Promise<TMDBResult[]> =
       poster_path: item.poster_path,
       vote_average: item.vote_average || 0,
       media_type: "movie",
+      release_date: item.release_date || null,
+      first_air_date: item.first_air_date || null,
     }));
   } catch (error) {
     console.error(`Error fetching regional movies for region ${region}:`, error);
