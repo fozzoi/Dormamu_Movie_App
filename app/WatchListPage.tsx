@@ -14,7 +14,7 @@ import { getImageUrl } from '../src/tmdb';
 import { useNavigation } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
-const CARD_WIDTH = (width - 48) / 3;
+const CARD_WIDTH = (width - 32) / 2; // Adjusted for 2 cards per row with padding
 
 const WatchListPage = () => {
   const [watchlist, setWatchlist] = useState<any[]>([]);
@@ -113,7 +113,7 @@ const WatchListPage = () => {
           data={watchlist}
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderItem}
-          numColumns={3}
+          numColumns={2} // Set to 2 cards per row
           contentContainerStyle={styles.listContent}
         />
       )}
@@ -124,15 +124,16 @@ const WatchListPage = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
+    padding: 10,
     backgroundColor: '#000',
   },
   header: {
-    textAlign: 'center',
     color: '#fff',
-    fontSize: 28,
+    fontSize: 35, // Slightly reduced font size
     fontWeight: 'bold',
-    marginBottom: 16,
+    marginBottom: 20, // Move the heading slightly down
+    textAlign: 'center', // Center the text
+    marginTop: 20,
   },
   clearButton: {
     marginBottom: 16,
@@ -143,8 +144,9 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   cardWrapper: {
-    margin: 4,
-    width: CARD_WIDTH,
+    margin: 5,
+    marginBottom: 10,
+    width: CARD_WIDTH, // Dynamically calculated width for 2 cards per row
   },
   selectedCard: {
     borderColor: '#f00',
@@ -152,10 +154,13 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   card: {
-    backgroundColor: '#111',
+    backgroundColor: '#262626',
+    borderRadius: 10,
+    width: '90%',
+    height: CARD_WIDTH * 1.5, // Maintain aspect ratio
   },
   cardImage: {
-    height: CARD_WIDTH * 1.5,
+   // height: CARD_WIDTH * 1.5, // Maintain aspect ratio
   },
   emptyContainer: {
     flex: 1,

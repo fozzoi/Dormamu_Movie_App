@@ -10,7 +10,7 @@ import {
   Dimensions,
   ScrollView,
   StyleSheet,
-  RefreshControl, // Import RefreshControl
+  RefreshControl,
 } from 'react-native';
 import {
   TextInput,
@@ -26,6 +26,7 @@ import {
   getImageUrl,
   TMDBResult,
 } from '../src/tmdb';
+import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 3; // 3 cards per row with 16px padding
@@ -123,19 +124,37 @@ const ExplorePage = () => {
     <View style={styles.container}>
       <View style={styles.searchSection}>
         {!inSearchMode && <Text style={styles.header}>Explore</Text>}
-        <TextInput
-          placeholder="Search here"
-          value={query}
-          onChangeText={(text) => {
-            setQuery(text);
-            if (text === '') {
-              setTmdbResults([]);
-            }
-          }}
-          mode="outlined"
-          style={styles.searchInput}
-          onSubmitEditing={handleSearch} // Trigger search when "Enter" is pressed
-        />
+        <View style={styles.searchInputContainer}>
+          <TextInput
+            textColor='white'
+            placeholder="Search here"
+            value={query}
+            onChangeText={(text) => {
+              setQuery(text);
+              if (text === '') {
+                setTmdbResults([]);
+              }
+            }}
+            underlineColor='transparent'
+            activeUnderlineColor='transparent'
+            cursorColor='white'
+            placeholderTextColor='gray'
+            selectionColor='gray'
+            style={styles.searchInput}
+            onSubmitEditing={handleSearch} // Trigger search when "Enter" is pressed
+          />
+          {query.trim() !== '' && (
+            <TouchableOpacity
+              onPress={() => {
+                setQuery('');
+                setTmdbResults([]);
+              }}
+              style={styles.clearButton}
+            >
+              <Ionicons name="close-circle" size={24} color="gray" />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {loading ? (
@@ -176,14 +195,37 @@ const styles = StyleSheet.create({
   },
   header: {
     color: '#fff',
-    fontSize: 24, // Slightly reduced font size
+    fontSize: 35, // Slightly reduced font size
     fontWeight: 'bold',
     marginBottom: 20, // Move the heading slightly down
     textAlign: 'center', // Center the text
+    marginTop: 20, // Add some top margin
+  },
+  searchInputContainer: {
+    position: 'relative',
+    width: '100%',
   },
   searchInput: {
-    backgroundColor: '#fff',
-    width: '100%', // Ensure the search bar spans the full width
+    backgroundColor: 'black',
+    color: 'white',
+    fontSize: 16,
+    width: '100%',
+    paddingRight: 40,
+    height: 40,
+    paddingHorizontal: 16, // Add padding to make space for the clear button
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'gray',
+    borderTopEndRadius: 20,
+    borderTopLeftRadius: 20,
+    paddingStart: 10,
+     // Add padding to make space for the icon
+  },
+  clearButton: {
+    position: 'absolute',
+    right: 10,
+    top: '50%',
+    transform: [{ translateY: -12 }],
   },
   loader: {
     marginTop: 20,

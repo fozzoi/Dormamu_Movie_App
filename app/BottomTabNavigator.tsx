@@ -7,11 +7,13 @@ import WatchlistScreen from '../app/watchlist';
 import Explore from './Explore';
 import Index from '../app/index';
 import WatchListPage from '../app/WatchListPage';
+import { white } from 'react-native-paper/lib/typescript/styles/themes/v2/colors';
 const Tab = createBottomTabNavigator();
 
 const BottomTabNavigator = () => {
   return (
     <Tab.Navigator
+      initialRouteName="Search"
       screenOptions={({ route }) => ({
         tabBarIcon: ({ color, size }) => {
           let iconName: keyof typeof Ionicons.glyphMap = 'search';
@@ -26,13 +28,14 @@ const BottomTabNavigator = () => {
             iconName = 'search';
           }
 
-          return <Ionicons name={iconName} size={size} color={color} />;
+          return <Ionicons name={iconName} size={size} color={'white'} />;
         },
         tabBarActiveTintColor: '#4CAF50',
         tabBarInactiveTintColor: 'gray',
+        tabBarStyle: { backgroundColor: '#000' }, // Set tab bar background to black
         headerShown: false,
       })}
-    > 
+    >
       <Tab.Screen name="Search" component={Index} />
       <Tab.Screen name="History" component={History} />
       <Tab.Screen name="Watchlist" component={WatchListPage} />

@@ -472,14 +472,14 @@ export default function Index() {
   );
 
   return (
-    <PaperProvider theme={theme}>
+   // <PaperProvider theme={theme}>
       <ErrorBoundary>
         <StatusBar
           barStyle={colorScheme === "dark" ? "light-content" : "dark-content"}
           backgroundColor={theme.colors.background}
         />
         <ScrollView contentContainerStyle={styles.scrollContainer}>
-          <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+          <View style={[styles.container,]}>
             {/* Heading */}
             <Text style={styles.heading}>Torrent Search</Text>
 
@@ -488,19 +488,27 @@ export default function Index() {
             {/* Search Bar and Button */}
             <View style={styles.searchContainer}>
               <TextInput
-                label="Search torrents..."
                 value={searchQuery}
                 onChangeText={setSearchQuery}
-                mode="outlined"
+                underlineColor="transparent"
+                activeUnderlineColor="transparent"
+                cursorColor='gray'
+                placeholderTextColor='gray'
+                selectionColor='gray'
+                textColor="white"
+                placeholder="Search for movies or series"
                 style={styles.input}
               />
-              <Button mode="contained" onPress={() => handleSearch(searchQuery)} style={styles.button}>
+              {/* <Button mode="contained" onPress={() => handleSearch(searchQuery)} style={styles.button}>
                 Search
-              </Button>
+              </Button> */}
             </View>
             {/* Results */}
             {loading ? (
-              <ActivityIndicator animating={true} size="large" />
+              <ActivityIndicator 
+              animating={true} 
+              size="large"
+               />
             ) : (
               filters.type === 'series' ? (
                 organizeSeriesEpisodes(results).map(series => renderSeriesCard(series))
@@ -510,19 +518,20 @@ export default function Index() {
                   return (
                     <Card key={item.id.toString()} style={styles.card}>
                       <Card.Title 
+                        titleStyle={{ color: 'white' }}
                         title={item.name}
                         right={(props) => (
-                          <View style={styles.qualityBadge}>
+                          <View style={styles.qualityBadge} >
                             <Text style={[styles.qualityText, { color: quality.color }]}>
                               {quality.label}
                             </Text>
                           </View>
                         )}
                       />
-                      <Card.Content>
+                      <Card.Content >
                         <View style={styles.contentRow}>
-                          <Text>Size: {item.size?.toString() || "Unknown"}</Text>
-                          <Text>Source: {item.source?.toString() || "Unknown"}</Text>
+                          <Text style={{ color: 'white' }}>Size: {item.size?.toString() || "Unknown"}</Text>
+                          <Text style={{ color: 'white' }}>Source: {item.source?.toString() || "Unknown"}</Text>
                         </View>
                         {item.isSeries && item.episodes && (
                           <View style={styles.episodesContainer}>
@@ -554,29 +563,45 @@ export default function Index() {
           </View>
         </ScrollView>
       </ErrorBoundary>
-    </PaperProvider>
+   // </PaperProvider>
   );
 }
 
 const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
+    justifyContent: "center",
+    backgroundColor: "#000",
   },
   container: {
     flex: 1,
     padding: 16,
   },
   heading: {
-    fontSize: 32,
+    fontSize: 35,
     fontWeight: "bold",
     textAlign: "center",
-    marginBottom: 24,
+    marginBottom: 50,
+    marginTop: 250,
     color: "#FFFFFF",
   },
   searchContainer: {
     marginBottom: 24,
   },
   input: {
+    backgroundColor: 'black',
+    color: 'white',
+    fontSize: 16,
+    width: '100%',
+    paddingRight: 40,
+    height: 40,
+    paddingHorizontal: 16, // Add padding to make space for the clear button
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'gray',
+    borderTopEndRadius: 20,
+    borderTopLeftRadius: 20,
+    paddingStart: 10,
     marginBottom: 16,
   },
   button: {
@@ -586,6 +611,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     elevation: 4,
     backgroundColor: '#1e1e1e',
+    color: 'gray',
   },
   filterContainer: {
     marginBottom: 16,

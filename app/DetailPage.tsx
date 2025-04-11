@@ -6,6 +6,7 @@ import {
   ImageBackground,
   Alert,
   TouchableOpacity,
+  StyleSheet,
 } from 'react-native';
 import { Text, Button } from 'react-native-paper';
 import { getImageUrl } from '../src/tmdb';
@@ -13,7 +14,7 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 const DetailPage = () => {
   const route = useRoute();
@@ -39,45 +40,51 @@ const DetailPage = () => {
   };
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: '#000' }}>
+    <ScrollView style={styles.container}>
       <ImageBackground
         source={{ uri: getImageUrl(movie.poster_path, 'original') }}
-        style={{ width: '100%', height: width * 1.5 }}
+        style={styles.imageBackground}
       >
         <TouchableOpacity
           onPress={() => navigation.goBack()}
-          style={{
-            position: 'absolute',
-            top: 40,
-            left: 16,
-            zIndex: 10,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            borderRadius: 20,
-            padding: 8,
-          }}
+          style={styles.backButton}
         >
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <View style={{ flex: 1, justifyContent: 'flex-end', padding: 16, backgroundColor: 'rgba(0,0,0,0.4)' }}>
-          <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#fff' }}>
+        <View style={styles.infoContainer}>
+          <Text style={styles.title}>
             {movie.title || movie.name} ({(movie.release_date || movie.first_air_date)?.split('-')[0] || 'N/A'})
           </Text>
-          <Text style={{ fontSize: 16, color: '#fff', marginTop: 4 }}>
-            Rating: {movie.vote_average.toFixed(1)}
+          <View style={styles.row}>
+            <Text style={styles.rating}>
+              Rating: {movie.vote_average.toFixed(1)}
+            </Text>
+            <Text style={styles.certification}>
+              {movie.certification || 'Unrated'}
+            </Text>
+          </View>
+          <Text style={styles.mediaType}>
+            {movie.media_type === 'movie' ? 'Movie' : 'TV Show'}
           </Text>
         </View>
       </ImageBackground>
-      <View style={{ padding: 16 }}>
-        <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#fff', marginBottom: 8 }}>
-          Overview
-        </Text>
-        <Text style={{ fontSize: 16, color: '#fff', marginBottom: 16 }}>
+      <View style={styles.contentContainer}>
+        <View style={styles.castContainer}>
+          <Text style={styles.castTitle}>
+            Cast:
+          </Text>
+          <Text style={styles.castText}>
+              {movie.cast?.slice(0, 5).join(', ') || 'N/A'}
+            </Text>
+        </View>
+        <Text style={styles.overviewTitle}>Overview</Text>
+        <Text style={styles.overviewText}>
           {showFullOverview
             ? `${movie.overview} `
             : `${movie.overview.slice(0, 100)}... `}
           <Text
             onPress={() => setShowFullOverview(!showFullOverview)}
-            style={{ color: 'gray', fontWeight: '600' }}
+            style={styles.showMore}
           >
             {showFullOverview ? 'Show Less' : 'Show More'}
           </Text>
@@ -94,18 +101,16 @@ const DetailPage = () => {
                 const updatedList = list.filter((item: any) => item.id !== movie.id);
                 await AsyncStorage.setItem('watchlist', JSON.stringify(updatedList));
                 setIsInWatchlist(false);
-                Alert.alert('Removed', 'Movie removed from watchlist');
               } else {
                 const updatedList = [...list, movie];
                 await AsyncStorage.setItem('watchlist', JSON.stringify(updatedList));
                 setIsInWatchlist(true);
-                Alert.alert('Added', 'Movie added to watchlist');
               }
             } catch (error) {
-              Alert.alert('Error', 'Failed to update watchlist');
+              console.log('Failed to update watchlist:', error);
             }
           }}
-          style={{ marginBottom: 12 }}
+          style={styles.watchlistButton}
         >
           {isInWatchlist ? 'Remove from Watchlist' : 'Add to Watchlist'}
         </Button>
@@ -113,5 +118,96 @@ const DetailPage = () => {
     </ScrollView>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  imageBackground: {
+    width: '100%',
+    height: height * 0.7,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 40,
+    left: 16,
+    zIndex: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 20,
+    padding: 8,
+  },
+  infoContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    padding: 16,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    marginBottom: 20,
+    
+  },
+  title: {
+    fontSize: width * 0.07,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  rating: {
+    fontSize: width * 0.04,
+    color: '#fff',
+  },
+  certification: {
+    fontSize: width * 0.04,
+    color: '#fff',
+  },
+  mediaType: {
+    fontSize: width * 0.04,
+    color: '#fff',
+    marginTop: 4,
+  },
+  contentContainer: {
+    padding: 16,
+    borderTopStartRadius: 30,
+    borderTopEndRadius: 30,
+    backgroundColor: '#111',
+    zIndex: 10,
+    marginTop: -20,
+  },
+  castContainer: {
+    marginBottom: 16,
+  },
+  castTitle: {
+    fontSize: width * 0.045,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  castText: {
+    fontSize: width * 0.04,
+    color: '#fff',
+    lineHeight: 20,
+  },
+  overviewTitle: {
+    fontSize: width * 0.05,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 8,
+  },
+  overviewText: {
+    fontSize: width * 0.04,
+    color: '#fff',
+    marginBottom: 16,
+  },
+  showMore: {
+    color: 'gray',
+    fontWeight: '600',
+  },
+  watchlistButton: {
+    marginBottom: 12,
+  },
+});
 
 export default DetailPage;
