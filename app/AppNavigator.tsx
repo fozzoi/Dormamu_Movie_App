@@ -15,4 +15,4 @@ const AppNavigator = () => {
   );
 };
 
-export default AppNavigator;
+export default AppNavigator; // Ensure this is the default export

@@ -83,6 +83,7 @@ export default function Index() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [results, setResults] = useState<Result[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  const [showMore, setShowMore] = useState(false); // State to toggle additional results
   // Initialize filter type automatically (default "movie")
   const [filters, setFilters] = useState<FilterOptions>({
     source: [],
@@ -257,6 +258,37 @@ export default function Index() {
     return { score: 0, label: 'Unknown', color: '#9E9E9E' };
   };
 
+  const extractAudioLanguages = (name: string): string[] => {
+    const languagePatterns: { [key: string]: string } = {
+      "multi audio|dual audio|multi-lang|multi language": "Multi",
+      "english|eng": "English",
+      "hindi|hin": "Hindi",
+      "spanish|spa": "Spanish",
+      "french|fre|fra": "French",
+      "german|ger|deu": "German",
+      "japanese|jpn": "Japanese",
+      "korean|kor": "Korean",
+      "chinese|chi|zho": "Chinese",
+      "tamil|tam": "Tamil",
+      "telugu|tel": "Telugu",
+    };
+  
+    const detectedLanguages: string[] = [];
+    for (const [pattern, language] of Object.entries(languagePatterns)) {
+      const regex = new RegExp(`\\b(${pattern})\\b`, "i");
+      if (regex.test(name)) {
+        detectedLanguages.push(language);
+      }
+    }
+  
+    // If "Multi" is detected, return only "Multi"
+    if (detectedLanguages.includes("Multi")) {
+      return ["Multi"];
+    }
+  
+    return detectedLanguages.length > 0 ? detectedLanguages : ["Unknown"];
+  };
+
   const saveToHistory = async (query: string) => {
     try {
       const existing = await AsyncStorage.getItem("searchHistory");
@@ -276,10 +308,10 @@ export default function Index() {
 
   useEffect(() => {
     if (route.params?.prefillQuery) {
-      setSearchQuery(route.params.prefillQuery);
-      handleSearch(route.params.prefillQuery);
+      setSearchQuery(route.params.prefillQuery); // Set the search query
+      handleSearch(route.params.prefillQuery); // Trigger the search
     }
-  }, [route.params]);
+  }, [route.params?.prefillQuery]); // Ensure it reacts to changes in prefillQuery
 
   const handleSearch = async (query: string = searchQuery) => {
     if (!query.trim()) {
@@ -362,13 +394,19 @@ export default function Index() {
       const response = await axios.get(
         `https://apibay.org/q.php?q=${encodeURIComponent(query)}&cat=0`
       );
-      return response.data.map((item: any) => ({
-        id: item.id,
-        name: item.name,
-        size: `${(parseInt(item.size) / (1024 * 1024)).toFixed(2)} MB`,
-        source: "The Pirate Bay",
-        url: `magnet:?xt=urn:btih:${item.info_hash}&dn=${encodeURIComponent(item.name)}`,
-      }));
+      return response.data.map((item: any) => {
+        const sizeInMB = parseInt(item.size) / (1024 * 1024);
+        const size = sizeInMB >= 1024 
+          ? `${(sizeInMB / 1024).toFixed(2)} GB` // Convert to GB if >= 1024 MB
+          : `${sizeInMB.toFixed(2)} MB`; // Keep in MB otherwise
+        return {
+          id: item.id,
+          name: item.name,
+          size,
+          source: "The Pirate Bay",
+          url: `magnet:?xt=urn:btih:${item.info_hash}&dn=${encodeURIComponent(item.name)}`,
+        };
+      });
     } catch (error) {
       console.error("PirateBay Error:", error);
       return [];
@@ -381,25 +419,35 @@ export default function Index() {
       return;
     }
 
-    const filePath = `${FileSystem.documentDirectory}${name}.torrent`;
-
     try {
-      const { uri } = await FileSystem.downloadAsync(url, filePath);
-
-      if (Platform.OS === "android") {
-        const action = "android.intent.action.VIEW";
-        const params = {
-          data: uri,
-          flags: 1,
-          type: "application/x-bittorrent",
-        };
-        await IntentLauncher.startActivityAsync(action, params);
-      } else if (Platform.OS === "ios") {
-        const supported = await Linking.canOpenURL(uri);
+      if (url.startsWith("magnet:")) {
+        // Open magnet links directly
+        const supported = await Linking.canOpenURL(url);
         if (supported) {
-          await Linking.openURL(uri);
+          await Linking.openURL(url);
         } else {
-          Alert.alert("Error", "No app available to handle this file.");
+          Alert.alert("Error", "No app available to handle magnet links.");
+        }
+      } else {
+        // Handle direct file URLs
+        const filePath = `${FileSystem.documentDirectory}${name}.torrent`;
+        const { uri } = await FileSystem.downloadAsync(url, filePath);
+
+        if (Platform.OS === "android") {
+          const action = "android.intent.action.VIEW";
+          const params = {
+            data: uri,
+            flags: 1,
+            type: "application/x-bittorrent",
+          };
+          await IntentLauncher.startActivityAsync(action, params);
+        } else if (Platform.OS === "ios") {
+          const supported = await Linking.canOpenURL(uri);
+          if (supported) {
+            await Linking.openURL(uri);
+          } else {
+            Alert.alert("Error", "No app available to handle this file.");
+          }
         }
       }
     } catch (error) {
@@ -471,99 +519,87 @@ export default function Index() {
     </Card>
   );
 
-  return (
-   // <PaperProvider theme={theme}>
-      <ErrorBoundary>
-        <StatusBar
-          barStyle={colorScheme === "dark" ? "light-content" : "dark-content"}
-          backgroundColor={theme.colors.background}
-        />
-        <ScrollView contentContainerStyle={styles.scrollContainer}>
-          <View style={[styles.container,]}>
-            {/* Heading */}
-            <Text style={styles.heading}>Torrent Search</Text>
+  const renderResults = () => {
+    const visibleResults = showMore ? results : results.slice(0, 5); // Show all or first 5 results
+    return visibleResults.map((item) => {
+      const quality = getQualityInfo(item.name);
+      const audioLanguages = extractAudioLanguages(item.name); // Extract audio languages
+      const languageDisplay = audioLanguages.length > 1 ? "Multi" : audioLanguages[0];
 
-            {/* Removed content type selector UI; content type now automates based on results */}
-
-            {/* Search Bar and Button */}
-            <View style={styles.searchContainer}>
-              <TextInput
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                underlineColor="transparent"
-                activeUnderlineColor="transparent"
-                cursorColor='gray'
-                placeholderTextColor='gray'
-                selectionColor='gray'
-                textColor="white"
-                placeholder="Search for movies or series"
-                style={styles.input}
-              />
-              {/* <Button mode="contained" onPress={() => handleSearch(searchQuery)} style={styles.button}>
-                Search
-              </Button> */}
-            </View>
-            {/* Results */}
-            {loading ? (
-              <ActivityIndicator 
-              animating={true} 
-              size="large"
-               />
-            ) : (
-              filters.type === 'series' ? (
-                organizeSeriesEpisodes(results).map(series => renderSeriesCard(series))
-              ) : (
-                applyFilters(results).map((item) => {
-                  const quality = getQualityInfo(item.name);
-                  return (
-                    <Card key={item.id.toString()} style={styles.card}>
-                      <Card.Title 
-                        titleStyle={{ color: 'white' }}
-                        title={item.name}
-                        right={(props) => (
-                          <View style={styles.qualityBadge} >
-                            <Text style={[styles.qualityText, { color: quality.color }]}>
-                              {quality.label}
-                            </Text>
-                          </View>
-                        )}
-                      />
-                      <Card.Content >
-                        <View style={styles.contentRow}>
-                          <Text style={{ color: 'white' }}>Size: {item.size?.toString() || "Unknown"}</Text>
-                          <Text style={{ color: 'white' }}>Source: {item.source?.toString() || "Unknown"}</Text>
-                        </View>
-                        {item.isSeries && item.episodes && (
-                          <View style={styles.episodesContainer}>
-                            <Text style={styles.episodesTitle}>Episodes:</Text>
-                            {item.episodes.map((ep, index) => (
-                              <View key={index} style={styles.episodeRow}>
-                                <Text>S{ep.season.toString().padStart(2, '0')}E{ep.episode.toString().padStart(2, '0')}</Text>
-                                <Text style={styles.qualityText}>{ep.quality}</Text>
-                                <Button 
-                                  onPress={() => handleDownload(ep.url, `${item.name} S${ep.season}E${ep.episode}`)}
-                                >
-                                  Download
-                                </Button>
-                              </View>
-                            ))}
-                          </View>
-                        )}
-                        {!item.isSeries && (
-                          <Card.Actions>
-                            <Button onPress={() => handleDownload(item.url, item.name)}>Download</Button>
-                          </Card.Actions>
-                        )}
-                      </Card.Content>
-                    </Card>
-                  );
-                })
-              )
+      return (
+        <Card key={item.id.toString()} style={styles.card}>
+          <Card.Title
+            titleStyle={{ color: 'white' }}
+            title={item.name}
+            right={(props) => (
+              <View style={styles.qualityBadge}>
+                <Text style={[styles.qualityText, { color: quality.color }]}>
+                  {quality.label}
+                </Text>
+              </View>
             )}
+          />
+          <Card.Content>
+            <View style={styles.contentRow}>
+              <Text style={{ color: 'white' }}>Size: {item.size?.toString() || "Unknown"}</Text>
+              <Text style={{ color: 'white' }}>Source: {item.source?.toString() || "Unknown"}</Text>
+            </View>
+            <View style={styles.contentRow}>
+              <Text style={{ color: 'white' }}>Audio: {languageDisplay}</Text>
+            </View>
+            {/* <Card.Actions> */}
+              <Button style={(styles.button)} mode="outlined" onPress={() => handleDownload(item.url, item.name)}>Download</Button>
+            {/* </Card.Actions> */}
+          </Card.Content>
+        </Card>
+      );
+    });
+  };
+
+  return (
+    <ErrorBoundary>
+      <StatusBar
+        barStyle={colorScheme === "dark" ? "light-content" : "dark-content"}
+        backgroundColor={theme.colors.background}
+      />
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        <View style={styles.container}>
+          <Text style={styles.heading}>Torrent Search</Text>
+          <View style={styles.searchContainer}>
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              underlineColor="transparent"
+              activeUnderlineColor="transparent"
+              cursorColor="gray"
+              placeholderTextColor="gray"
+              selectionColor="gray"
+              textColor="white"
+              placeholder="Search for movies or series"
+              style={styles.input}
+              onSubmitEditing={() => handleSearch(searchQuery)}
+              returnKeyType="search"
+            />
           </View>
-        </ScrollView>
-      </ErrorBoundary>
-   // </PaperProvider>
+          {loading ? (
+            <ActivityIndicator animating={true} size="large" />
+          ) : (
+            <>
+              {renderResults()}
+              {results.length > 5 && (
+                <Button
+                  mode="text"
+                  onPress={() => setShowMore(!showMore)}
+                  style={styles.showMoreButton}
+                >
+                  {showMore ? "Show Less" : "Show More"}
+                </Button>
+              )}
+            </>
+          )}
+        </View>
+      </ScrollView>
+    </ErrorBoundary>
   );
 }
 
@@ -608,10 +644,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   card: {
-    marginBottom: 16,
+    marginBottom: 14,
     elevation: 4,
     backgroundColor: '#1e1e1e',
     color: 'gray',
+    height: 190,
   },
   filterContainer: {
     marginBottom: 16,
@@ -714,6 +751,10 @@ const styles = StyleSheet.create({
   actionButton: {
     flex: 1,
     marginHorizontal: 4,
+  },
+  showMoreButton: {
+    marginTop: 16,
+    alignSelf: 'center',
   },
 });
 

@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "mytorrent2",
-    "slug": "mytorrent2",
-    "version": "1.0.0",
+    "name": "Dormamu",
+    "slug": "Dormamu",
+    "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "myapp",
@@ -16,7 +16,8 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "jsEngine": "hermes"
+      "jsEngine": "hermes",
+      "package": "com.Dormamu"
     },
     "web": {
       "bundler": "metro",
@@ -37,6 +38,14 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "592c63ff-f6ab-4bb0-9b5c-cf1b89eb6259"
+      }
     }
   }
 }

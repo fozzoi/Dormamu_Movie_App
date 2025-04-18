@@ -31,7 +31,7 @@ import { Ionicons } from '@expo/vector-icons';
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 3; // 3 cards per row with 16px padding
 
-const Section = ({ title, data, navigation }: any) => (
+const Section = ({ title, data, navigation }: { title: string; data: TMDBResult[]; navigation: any }) => (
   <View style={styles.sectionContainer}>
     <Text style={styles.sectionTitle}>{title}</Text>
     <FlatList
@@ -39,7 +39,7 @@ const Section = ({ title, data, navigation }: any) => (
       data={data}
       renderItem={({ item }) => (
         <TouchableOpacity
-          onPress={() => navigation.navigate('Detail', { movie: item })}
+          onPress={() => navigation.navigate('Detail', { movie: item } as any)} // Explicitly cast to `any`
           style={styles.sectionItem}
         >
           <Image
@@ -86,15 +86,16 @@ const ExplorePage = () => {
   };
 
   const renderSearchItem = ({ item }: { item: TMDBResult }) => (
-    <TouchableOpacity
-      onPress={() => navigation.navigate('Detail', { movie: item })}
-      style={styles.searchItem}
-    >
-      <Image source={{ uri: getImageUrl(item.poster_path) }} style={styles.sectionImage} />
-      <Text style={{ color: 'white', marginTop: 4 }}>
-        {item.title || item.name}
-      </Text>
-    </TouchableOpacity>
+    <View style={styles.searchItem}>
+      <TouchableOpacity
+        onPress={() => navigation.navigate('Detail', { movie: item })}
+      >
+        <Image source={{ uri: getImageUrl(item.poster_path) }} style={styles.sectionImage} />
+        <Text style={{ color: 'white', marginTop: 4 }}>
+          {item.title || item.name}
+        </Text>
+      </TouchableOpacity>
+    </View>
   );
 
   const fetchDiscoveryContent = async () => {

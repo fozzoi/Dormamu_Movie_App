@@ -1,4 +1,5 @@
 import axios from "axios";
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 const TMDB_API_KEY = "7d3f7aa3d3623c924b57a28243c4e84e";
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";

@@ -2,6 +2,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { Layout } from 'react-native-reanimated';
 import History from '../app/history';
 import WatchlistScreen from '../app/watchlist';
 import Explore from './Explore';
@@ -34,12 +35,65 @@ const BottomTabNavigator = () => {
         tabBarInactiveTintColor: 'gray',
         tabBarStyle: { backgroundColor: '#000' }, // Set tab bar background to black
         headerShown: false,
+        tabBarHideOnKeyboard: true, // Hide tab bar on keyboard open
       })}
     >
-      <Tab.Screen name="Search" component={Index} />
-      <Tab.Screen name="History" component={History} />
-      <Tab.Screen name="Watchlist" component={WatchListPage} />
-      <Tab.Screen name="Explore" component={Explore} />
+      <Tab.Screen
+        name="Search"
+        component={Index}
+        options={{
+          tabBarLabel: ({ focused }) => (
+            <Animated.Text
+              layout={Layout} // Use `Layout` for animations
+              style={{ color: focused ? '#4CAF50' : 'gray' }}
+            >
+              Search
+            </Animated.Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="History"
+        component={History}
+        options={{
+          tabBarLabel: ({ focused }) => (
+            <Animated.Text
+              layout={Layout} // Use `Layout` for animations
+              style={{ color: focused ? '#4CAF50' : 'gray' }}
+            >
+              History
+            </Animated.Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Watchlist"
+        component={WatchListPage}
+        options={{
+          tabBarLabel: ({ focused }) => (
+            <Animated.Text
+              layout={Layout} // Use `Layout` for animations
+              style={{ color: focused ? '#4CAF50' : 'gray' }}
+            >
+              Watchlist
+            </Animated.Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Explore"
+        component={Explore}
+        options={{
+          tabBarLabel: ({ focused }) => (
+            <Animated.Text
+              layout={Layout} // Use `Layout` for animations
+              style={{ color: focused ? '#4CAF50' : 'gray' }}
+            >
+              Explore
+            </Animated.Text>
+          ),
+        }}
+      />
     </Tab.Navigator>
   );
 };

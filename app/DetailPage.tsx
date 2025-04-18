@@ -1,18 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import {
   View,
-  ScrollView,
   Dimensions,
   ImageBackground,
   Alert,
   TouchableOpacity,
   StyleSheet,
+  ScrollView,
 } from 'react-native';
 import { Text, Button } from 'react-native-paper';
 import { getImageUrl } from '../src/tmdb';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import index from './index';
+
+interface HistoryItem {
+  query: string;
+  date: string;
+}
 
 const { width, height } = Dimensions.get('window');
 
@@ -41,41 +47,43 @@ const DetailPage = () => {
 
   return (
     <ScrollView style={styles.container}>
-      <ImageBackground
-        source={{ uri: getImageUrl(movie.poster_path, 'original') }}
-        style={styles.imageBackground}
-      >
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
+      <View>
+        <ImageBackground
+          source={{ uri: getImageUrl(movie.poster_path, 'original') }}
+          style={styles.imageBackground}
         >
-          <Ionicons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <View style={styles.infoContainer}>
-          <Text style={styles.title}>
-            {movie.title || movie.name} ({(movie.release_date || movie.first_air_date)?.split('-')[0] || 'N/A'})
-          </Text>
-          <View style={styles.row}>
-            <Text style={styles.rating}>
-              Rating: {movie.vote_average.toFixed(1)}
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <View style={styles.infoContainer}>
+            <Text style={styles.title}>
+              {movie.title || movie.name} ({(movie.release_date || movie.first_air_date)?.split('-')[0] || 'N/A'})
             </Text>
-            <Text style={styles.certification}>
-              {movie.certification || 'Unrated'}
+            <View style={styles.row}>
+              <Text style={styles.rating}>
+                Rating: {movie.vote_average.toFixed(1)}
+              </Text>
+              <Text style={styles.certification}>
+                {movie.certification || 'Unrated'}
+              </Text>
+            </View>
+            <Text style={styles.mediaType}>
+              {movie.media_type === 'movie' ? 'Movie' : 'TV Show'}
             </Text>
           </View>
-          <Text style={styles.mediaType}>
-            {movie.media_type === 'movie' ? 'Movie' : 'TV Show'}
-          </Text>
-        </View>
-      </ImageBackground>
+        </ImageBackground>
+      </View>
       <View style={styles.contentContainer}>
         <View style={styles.castContainer}>
           <Text style={styles.castTitle}>
             Cast:
           </Text>
           <Text style={styles.castText}>
-              {movie.cast?.slice(0, 5).join(', ') || 'N/A'}
-            </Text>
+            {movie.cast?.slice(0, 5).join(', ') || 'N/A'}
+          </Text>
         </View>
         <Text style={styles.overviewTitle}>Overview</Text>
         <Text style={styles.overviewText}>
@@ -114,6 +122,18 @@ const DetailPage = () => {
         >
           {isInWatchlist ? 'Remove from Watchlist' : 'Add to Watchlist'}
         </Button>
+        <Button
+          mode="contained"
+          onPress={() =>
+            navigation.navigate('Main', {
+              screen: 'Search', // Use the bottom tab navigator's route
+              params: { prefillQuery: movie.title || movie.name }, // Pass prefillQuery correctly
+            })
+          }
+          style={styles.watchlistButton}
+        >
+          Search
+        </Button>
       </View>
     </ScrollView>
   );
@@ -127,6 +147,7 @@ const styles = StyleSheet.create({
   imageBackground: {
     width: '100%',
     height: height * 0.7,
+    
   },
   backButton: {
     position: 'absolute',
