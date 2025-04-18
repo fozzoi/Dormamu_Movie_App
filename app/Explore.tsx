@@ -1,5 +1,5 @@
 // ExplorePage.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,55 +17,90 @@ import {
   ActivityIndicator,
 } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import { Ionicons } from '@expo/vector-icons';
 import {
   searchTMDB,
-  getTrendingMovies,
-  getTrendingTV,
-  getTopRated,
-  getRegionalMovies,
+  fetchAllDiscoveryContent,
   getImageUrl,
+  getFullDetails,
   TMDBResult,
 } from '../src/tmdb';
-import { Ionicons } from '@expo/vector-icons';
+import LoadingSection from './LoadingSection';
+import LoadingCard from './LoadingCard';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 3; // 3 cards per row with 16px padding
 
-const Section = ({ title, data, navigation }: { title: string; data: TMDBResult[]; navigation: any }) => (
+// Card component with animation
+const MovieCard = ({ item, onPress, index = 0 }) => {
+  return (
+    <Animated.View
+      entering={FadeIn.duration(300).delay(index * 50)}
+      exiting={FadeOut.duration(200)}
+    >
+      <TouchableOpacity
+        onPress={onPress}
+        style={styles.sectionItem}
+      >
+        <Image
+          source={{ uri: getImageUrl(item.poster_path) }}
+          style={styles.sectionImage}
+        />
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
+
+const Section = ({ title, data, navigation, isLoading = false }) => (
   <View style={styles.sectionContainer}>
     <Text style={styles.sectionTitle}>{title}</Text>
-    <FlatList
-      horizontal
-      data={data}
-      renderItem={({ item }) => (
-        <TouchableOpacity
-          onPress={() => navigation.navigate('Detail', { movie: item } as any)} // Explicitly cast to `any`
-          style={styles.sectionItem}
-        >
-          <Image
-            source={{ uri: getImageUrl(item.poster_path) }}
-            style={styles.sectionImage}
+    {isLoading ? (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        {Array.from({ length: 5 }).map((_, index) => (
+          <LoadingCard key={index} index={index} delay={index} />
+        ))}
+      </ScrollView>
+    ) : (
+      <FlatList
+        horizontal
+        data={data}
+        renderItem={({ item, index }) => (
+          <MovieCard 
+            item={item} 
+            index={index}
+            onPress={async () => {
+              // Get full details before navigating to detail page
+              try {
+                const fullDetails = await getFullDetails(item);
+                navigation.navigate('Detail', { movie: fullDetails });
+              } catch (error) {
+                console.error("Error fetching details:", error);
+                navigation.navigate('Detail', { movie: item });
+              }
+            }} 
           />
-        </TouchableOpacity>
-      )}
-      keyExtractor={(item) => item.id.toString()}
-      showsHorizontalScrollIndicator={false}
-    />
+        )}
+        keyExtractor={(item) => item.id.toString()}
+        showsHorizontalScrollIndicator={false}
+      />
+    )}
   </View>
 );
 
 const ExplorePage = () => {
-  const [trendingMovies, setTrendingMovies] = useState<TMDBResult[]>([]);
-  const [trendingTV, setTrendingTV] = useState<TMDBResult[]>([]);
-  const [topRated, setTopRated] = useState<TMDBResult[]>([]);
-  const [regional, setRegional] = useState<TMDBResult[]>([]);
+  const [trendingMovies, setTrendingMovies] = useState([]);
+  const [trendingTV, setTrendingTV] = useState([]);
+  const [topRated, setTopRated] = useState([]);
+  const [regional, setRegional] = useState([]);
   const [query, setQuery] = useState('');
-  const [tmdbResults, setTmdbResults] = useState<TMDBResult[]>([]);
+  const [tmdbResults, setTmdbResults] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false); // State for pull-to-refresh
+  const [contentLoading, setContentLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const navigation = useNavigation();
 
-  const handleSearch = async () => {
+  const handleSearch = useCallback(async () => {
     if (!query.trim()) return;
     setLoading(true);
     try {
@@ -73,7 +108,7 @@ const ExplorePage = () => {
 
       // Filter: Only results that start with input (case-insensitive), have poster and rating > 0
       const filtered = results.filter((item) =>
-        (item.title || item.name)?.toLowerCase().startsWith(query.trim().toLowerCase()) &&
+        (item.title || item.name)?.toLowerCase().includes(query.trim().toLowerCase()) &&
         item.poster_path &&
         item.vote_average > 0
       );
@@ -83,41 +118,57 @@ const ExplorePage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [query]);
 
-  const renderSearchItem = ({ item }: { item: TMDBResult }) => (
-    <View style={styles.searchItem}>
-      <TouchableOpacity
-        onPress={() => navigation.navigate('Detail', { movie: item })}
-      >
-        <Image source={{ uri: getImageUrl(item.poster_path) }} style={styles.sectionImage} />
-        <Text style={{ color: 'white', marginTop: 4 }}>
-          {item.title || item.name}
-        </Text>
-      </TouchableOpacity>
-    </View>
+  const renderSearchItem = ({ item, index }) => (
+    <Animated.View
+      entering={FadeIn.duration(300).delay(index * 50)}
+      exiting={FadeOut.duration(200)}
+    >
+      <View style={styles.searchItem}>
+        <TouchableOpacity
+          onPress={async () => {
+            try {
+              const fullDetails = await getFullDetails(item);
+              navigation.navigate('Detail', { movie: fullDetails });
+            } catch (error) {
+              navigation.navigate('Detail', { movie: item });
+            }
+          }}
+        >
+          <Image source={{ uri: getImageUrl(item.poster_path) }} style={styles.sectionImage} />
+          <Text style={{ color: 'white', marginTop: 4 }}>
+            {item.title || item.name}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </Animated.View>
   );
 
-  const fetchDiscoveryContent = async () => {
+  const fetchDiscoveryContent = useCallback(async () => {
+    setContentLoading(true);
     try {
-      setTrendingMovies(await getTrendingMovies());
-      setTrendingTV(await getTrendingTV());
-      setTopRated(await getTopRated());
-      setRegional(await getRegionalMovies('IN'));
+      const content = await fetchAllDiscoveryContent();
+      setTrendingMovies(content.trendingMovies);
+      setTrendingTV(content.trendingTV);
+      setTopRated(content.topRated);
+      setRegional(content.regional);
     } catch (err) {
       Alert.alert('Error', 'Failed to load discovery content');
+    } finally {
+      setContentLoading(false);
     }
-  };
+  }, []);
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchDiscoveryContent(); // Reload discovery content
+    await fetchDiscoveryContent();
     setRefreshing(false);
-  };
+  }, [fetchDiscoveryContent]);
 
   useEffect(() => {
     fetchDiscoveryContent();
-  }, []);
+  }, [fetchDiscoveryContent]);
 
   const inSearchMode = query.trim() !== '' && tmdbResults.length > 0;
 
@@ -142,7 +193,7 @@ const ExplorePage = () => {
             placeholderTextColor='gray'
             selectionColor='gray'
             style={styles.searchInput}
-            onSubmitEditing={handleSearch} // Trigger search when "Enter" is pressed
+            onSubmitEditing={handleSearch}
           />
           {query.trim() !== '' && (
             <TouchableOpacity
@@ -172,13 +223,33 @@ const ExplorePage = () => {
         <ScrollView
           contentContainerStyle={styles.discoveryContainer}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} /> // Add pull-to-refresh
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
-          <Section title="🔥 Trending Movies" data={trendingMovies} navigation={navigation} />
-          <Section title="📺 Trending TV Shows" data={trendingTV} navigation={navigation} />
-          <Section title="⭐ Top Rated" data={topRated} navigation={navigation} />
-          <Section title="🌏 Regional Picks (India)" data={regional} navigation={navigation} />
+          <Section 
+            title="🔥 Trending Movies" 
+            data={trendingMovies} 
+            navigation={navigation} 
+            isLoading={contentLoading} 
+          />
+          <Section 
+            title="📺 Trending TV Shows" 
+            data={trendingTV} 
+            navigation={navigation} 
+            isLoading={contentLoading} 
+          />
+          <Section 
+            title="⭐ Top Rated" 
+            data={topRated} 
+            navigation={navigation} 
+            isLoading={contentLoading} 
+          />
+          <Section 
+            title="🌏 Regional Picks (India)" 
+            data={regional} 
+            navigation={navigation} 
+            isLoading={contentLoading} 
+          />
         </ScrollView>
       )}
     </View>
@@ -192,15 +263,15 @@ const styles = StyleSheet.create({
   },
   searchSection: {
     padding: 16,
-    alignItems: 'center', // Center the heading horizontally
+    alignItems: 'center',
   },
   header: {
     color: '#fff',
-    fontSize: 35, // Slightly reduced font size
+    fontSize: 35,
     fontWeight: 'bold',
-    marginBottom: 20, // Move the heading slightly down
-    textAlign: 'center', // Center the text
-    marginTop: 20, // Add some top margin
+    marginBottom: 20,
+    textAlign: 'center',
+    marginTop: 20,
   },
   searchInputContainer: {
     position: 'relative',
@@ -213,14 +284,13 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingRight: 40,
     height: 40,
-    paddingHorizontal: 16, // Add padding to make space for the clear button
+    paddingHorizontal: 16,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: 'gray',
     borderTopEndRadius: 20,
     borderTopLeftRadius: 20,
     paddingStart: 10,
-     // Add padding to make space for the icon
   },
   clearButton: {
     position: 'absolute',
