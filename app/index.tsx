@@ -1,8 +1,6 @@
 import React, { useState } from "react";
-import { View, StyleSheet, Alert, Linking, useColorScheme, 
-  StatusBar, ScrollView, Platform } from "react-native";
-import { Provider as PaperProvider, TextInput, Button, Card, Text,
-   ActivityIndicator, MD3DarkTheme, MD3LightTheme, Chip } from "react-native-paper";
+import { View, StyleSheet, Alert, Linking, useColorScheme,StatusBar, ScrollView, Platform, TouchableOpacity } from "react-native";
+import { Provider as PaperProvider, TextInput, Button, Card, Text,ActivityIndicator, MD3DarkTheme, MD3LightTheme, Chip } from "react-native-paper";
 import axios from "axios";
 import * as FileSystem from "expo-file-system";
 import * as IntentLauncher from "expo-intent-launcher"; // Android-specific file handling
@@ -12,6 +10,7 @@ import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { RouteProp, useRoute } from "@react-navigation/native";
 import { useEffect } from "react";
+import { Ionicons } from "@expo/vector-icons";
 
 interface Movie {
   id: number;
@@ -557,7 +556,7 @@ export default function Index() {
   };
 
   return (
-    <ErrorBoundary>
+    <View style={styles.love}>
       <StatusBar
         barStyle={colorScheme === "dark" ? "light-content" : "dark-content"}
         backgroundColor={theme.colors.background}
@@ -580,6 +579,15 @@ export default function Index() {
               onSubmitEditing={() => handleSearch(searchQuery)}
               returnKeyType="search"
             />
+            <TouchableOpacity
+              onPress={() => {
+                setSearchQuery('');
+                setResults([]);
+              }}
+              style={styles.clearButton}
+            >
+              <Ionicons name="close-circle" size={24} color="gray" />
+            </TouchableOpacity>
           </View>
           {loading ? (
             <ActivityIndicator animating={true} size="large" />
@@ -599,7 +607,7 @@ export default function Index() {
           )}
         </View>
       </ScrollView>
-    </ErrorBoundary>
+    </View>
   );
 }
 
@@ -608,6 +616,17 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: "center",
     backgroundColor: "#000",
+  },
+  love:{
+    backgroundColor: "#000",
+    flex: 1,
+  },
+  clearButton: {
+    position: 'absolute',
+    right: '5%',
+    top: '15%',
+    alignSelf: 'flex-end',
+    verticalAlign:'middle'
   },
   container: {
     flex: 1,
@@ -755,6 +774,8 @@ const styles = StyleSheet.create({
   showMoreButton: {
     marginTop: 16,
     alignSelf: 'center',
+    borderColor:'gray',
+    borderWidth: 1,
   },
 });
 

@@ -1,21 +1,10 @@
 // app/CastDetails.tsx
 import React, { useEffect, useState } from 'react';
-import { 
-  View, 
-  Text, 
-  ScrollView, 
-  StyleSheet, 
-  Image, 
-  TouchableOpacity, 
-  FlatList, 
-  Dimensions,
-  ActivityIndicator
-} from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Image, TouchableOpacity, FlatList, Dimensions,ActivityIndicator} from 'react-native';
 import { getPersonDetails, getPersonCombinedCredits, getImageUrl, TMDBResult, TMDBPerson, getFullDetails } from '../src/tmdb';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 const { width } = Dimensions.get('window');
-import {Button } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 const CARD_WIDTH = width / 2.5;
 
@@ -59,12 +48,6 @@ const CastDetails = () => {
 
     fetchPersonData();
   }, [personId]);
-
-  // const handleMediaPress = (item: TMDBResult) => {
-  //   // Navigate to media details page
-  //   navigation.navigate('Detail', { id: item.id, mediaType: item.media_type, title: item.title || item.name,releaseDate: item.release_date || item.first_air_date, voteAverage: item.vote_average, overview: item.overview, cast: item.cast, });
-  // };
-
   const renderMediaCard = ({ item }: { item: TMDBResult }) => (
     <View style={styles.mediaCardContainer}>
       <TouchableOpacity 
@@ -80,7 +63,6 @@ const CastDetails = () => {
               }
             }
             }>
-
         <Image 
           source={{ uri: getImageUrl(item.poster_path) }} 
           style={styles.mediaPoster} 

@@ -2,16 +2,17 @@
   "expo": {
     "name": "Dormamu",
     "slug": "Dormamu",
-    "version": "2.1.0",
+    "version": "2.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "myapp",
     "developmentClient": false,
     "jsEngine": "hermes",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
-    "ios": {
-      "supportsTablet": true
+    "androidNavigationBar":{
+      "barStyle":"dark-content",
+      "backgroundColor:":"#ffffff"
     },
     "android": {
       "adaptiveIcon": {

@@ -4,11 +4,10 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { Layout } from 'react-native-reanimated';
 import History from '../app/history';
-import WatchlistScreen from '../app/watchlist';
 import Explore from './Explore';
 import Index from '../app/index';
 import WatchListPage from '../app/WatchListPage';
-import { white } from 'react-native-paper/lib/typescript/styles/themes/v2/colors';
+// import { white } from 'react-native-paper/lib/typescript/styles/themes/v2/colors';
 const Tab = createBottomTabNavigator();
 
 const BottomTabNavigator = () => {

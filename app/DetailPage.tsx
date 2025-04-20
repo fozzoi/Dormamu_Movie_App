@@ -3,7 +3,6 @@ import {
   View,
   Dimensions,
   ImageBackground,
-  Alert,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
@@ -13,7 +12,6 @@ import { getImageUrl } from '../src/tmdb';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import index from './index';
 
 interface HistoryItem {
   query: string;

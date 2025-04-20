@@ -145,9 +145,9 @@ const formatBasicItemData = (item: any): Omit<TMDBResult, 'certification' | 'cas
 });
 
 // Enhanced search function with lazy loading
-export const searchTMDB = async (query: string): Promise<TMDBResult[]> => {
+export const searchTMDB = async (query: string, page: number = 1): Promise<TMDBResult[]> => {
   try {
-    const data = await fetchWithCache("/search/multi", { query });
+    const data = await fetchWithCache("/search/multi", { query, page });
     // Return basic data first, then lazily load additional data if needed
     return data.results.map((item: any) => formatBasicItemData(item));
   } catch (error) {
@@ -189,10 +189,10 @@ export const getMediaDetails = async (id: number, mediaType: "movie" | "tv"): Pr
   }
 };
 
-// Optimized trending movies fetch
-export const getTrendingMovies = async (): Promise<TMDBResult[]> => {
+// Optimized trending movies fetch with pagination
+export const getTrendingMovies = async (page: number = 1): Promise<TMDBResult[]> => {
   try {
-    const data = await fetchWithCache("/trending/movie/week");
+    const data = await fetchWithCache("/trending/movie/week", { page });
     return data.results.map((item: any) => ({
       ...formatBasicItemData(item),
       media_type: "movie"
@@ -203,10 +203,10 @@ export const getTrendingMovies = async (): Promise<TMDBResult[]> => {
   }
 };
 
-// Optimized trending TV shows fetch
-export const getTrendingTV = async (): Promise<TMDBResult[]> => {
+// Optimized trending TV shows fetch with pagination
+export const getTrendingTV = async (page: number = 1): Promise<TMDBResult[]> => {
   try {
-    const data = await fetchWithCache("/trending/tv/week");
+    const data = await fetchWithCache("/trending/tv/week", { page });
     return data.results.map((item: any) => ({
       ...formatBasicItemData(item),
       media_type: "tv"
@@ -217,10 +217,10 @@ export const getTrendingTV = async (): Promise<TMDBResult[]> => {
   }
 };
 
-// Optimized top rated movies fetch
-export const getTopRated = async (): Promise<TMDBResult[]> => {
+// Optimized top rated movies fetch with pagination
+export const getTopRated = async (page: number = 1): Promise<TMDBResult[]> => {
   try {
-    const data = await fetchWithCache("/movie/top_rated");
+    const data = await fetchWithCache("/movie/top_rated", { page });
     return data.results.map((item: any) => ({
       ...formatBasicItemData(item),
       media_type: "movie"
@@ -231,12 +231,13 @@ export const getTopRated = async (): Promise<TMDBResult[]> => {
   }
 };
 
-// Optimized regional movies fetch
-export const getRegionalMovies = async (region: string): Promise<TMDBResult[]> => {
+// Optimized regional movies fetch with pagination
+export const getRegionalMovies = async (region: string = 'IN', page: number = 1): Promise<TMDBResult[]> => {
   try {
     const data = await fetchWithCache("/discover/movie", {
       region,
-      sort_by: "popularity.desc"
+      sort_by: "popularity.desc",
+      page
     });
     
     return data.results.map((item: any) => ({
@@ -249,7 +250,7 @@ export const getRegionalMovies = async (region: string): Promise<TMDBResult[]> =
   }
 };
 
-// Parallel fetch all discovery content at once
+// Parallel fetch all discovery content at once for initial page load
 export const fetchAllDiscoveryContent = async () => {
   try {
     const [trending, trendingTV, topRated, regional] = await Promise.all([
@@ -268,5 +269,28 @@ export const fetchAllDiscoveryContent = async () => {
   } catch (error) {
     console.error("Error fetching discovery content:", error);
     throw new Error("Failed to fetch discovery content.");
+  }
+};
+
+// ADD THIS FUNCTION: Fetch more content by type with pagination
+export const fetchMoreContentByType = async (type: string, page: number = 1): Promise<TMDBResult[]> => {
+  switch (type.toLowerCase()) {
+    case 'movie':
+    case 'trending':
+      return await getTrendingMovies(page);
+    case 'tv':
+      return await getTrendingTV(page);
+    case 'top':
+      return await getTopRated(page);
+    case 'regional':
+      return await getRegionalMovies('IN', page);
+    default:
+      // Search mode
+      if (type.startsWith('search:')) {
+        const query = type.substring(7);
+        return await searchTMDB(query, page);
+      }
+      // Default to trending movies
+      return await getTrendingMovies(page);
   }
 };
