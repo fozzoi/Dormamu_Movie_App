@@ -25,6 +25,7 @@ import {
 } from '../src/tmdb';
 import LoadingCard from './LoadingCard';
 import { LinearGradient } from 'expo-linear-gradient';
+import { transparent } from 'react-native-paper/lib/typescript/styles/themes/v2/colors';
 
 const { width, height } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.28; // Slightly smaller for better Netflix look
@@ -353,6 +354,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#141414',
+    paddingTop: 20,
   },
   scrollContent: {
     paddingBottom: 20,
@@ -364,6 +366,7 @@ const styles = StyleSheet.create({
     paddingTop: StatusBar.currentHeight + 10,
     paddingBottom: 10,
     zIndex: 99,
+    // backgroundColor:'transparent',
     backgroundColor: 'rgba(20, 20, 20, 0.9)',
   },
   logoContainer: {

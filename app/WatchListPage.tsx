@@ -162,6 +162,9 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 10,
     backgroundColor: '#141414', // Netflix dark background
+    paddingTop: 40,
+    paddingHorizontal: 16,
+
   },
   headerContainer: {
     flexDirection: 'row',

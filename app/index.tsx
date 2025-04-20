@@ -97,7 +97,7 @@ export default function Index() {
         colors: {
           ...MD3DarkTheme.colors,
           background: "#121212",
-          primary: "#BB86FC",
+          primary: "#ff8181",
         },
       }
     : {
@@ -105,7 +105,7 @@ export default function Index() {
         colors: {
           ...MD3LightTheme.colors,
           background: "#FFFFFF",
-          primary: "#6200EE",
+          primary: "#ff2121",
         },
       };
 
@@ -233,16 +233,16 @@ export default function Index() {
     
     // Check for common quality indicators
     if (lowerName.includes('2160p') || lowerName.includes('4k') || lowerName.includes('uhd')) {
-      return { score: 5, label: '4K', color: '#4CAF50' };
+      return { score: 5, label: '4K', color: '#00ff08' };
     }
     if (lowerName.includes('1080p') || lowerName.includes('fhd')) {
-      return { score: 4, label: '1080p', color: '#2196F3' };
+      return { score: 4, label: '1080p', color: '#1500ff' };
     }
     if (lowerName.includes('720p') || lowerName.includes('hd')) {
-      return { score: 3, label: '720p', color: '#FFC107' };
+      return { score: 3, label: '720p', color: '#ff6e00' };
     }
     if (lowerName.includes('480p') || lowerName.includes('sd')) {
-      return { score: 2, label: '480p', color: '#FF9800' };
+      return { score: 2, label: '480p', color: '#ff0000' };
     }
     
     // More specific quality checks
@@ -547,7 +547,9 @@ export default function Index() {
               <Text style={{ color: 'white' }}>Audio: {languageDisplay}</Text>
             </View>
             {/* <Card.Actions> */}
-              <Button style={(styles.button)} mode="outlined" onPress={() => handleDownload(item.url, item.name)}>Download</Button>
+              <Button style={(styles.button)} mode="outlined" onPress={() => handleDownload(item.url, item.name)}>
+                <Text style={styles.btntxt}> Download</Text>
+              </Button>
             {/* </Card.Actions> */}
           </Card.Content>
         </Card>
@@ -615,7 +617,7 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     justifyContent: "center",
-    backgroundColor: "#000",
+    backgroundColor: "rgba(20, 20, 20, 0.9)",
   },
   love:{
     backgroundColor: "#000",
@@ -661,6 +663,10 @@ const styles = StyleSheet.create({
   },
   button: {
     marginBottom: 16,
+    color:'red',
+  },
+  btntxt:{
+    color:'red',
   },
   card: {
     marginBottom: 14,

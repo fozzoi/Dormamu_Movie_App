@@ -223,16 +223,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#141414", // Netflix background color
     paddingHorizontal: 16,
-    paddingTop: 32,
+    paddingTop: 40,
   },
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 24,
-    alignItems: "center",
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#2f2f2f",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 8,
+    marginTop: 20,
   },
   title: {
     color: "white",

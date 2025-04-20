@@ -1,98 +1,85 @@
-// BottomTabNavigator.tsx
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { Layout } from 'react-native-reanimated';
 import History from '../app/history';
 import Explore from './Explore';
 import Index from '../app/index';
 import WatchListPage from '../app/WatchListPage';
-// import { white } from 'react-native-paper/lib/typescript/styles/themes/v2/colors';
+import Profile from '../app/Profile'; // Added import for Profile page
+
 const Tab = createBottomTabNavigator();
 
 const BottomTabNavigator = () => {
   return (
     <Tab.Navigator
-      initialRouteName="Search"
       screenOptions={({ route }) => ({
         tabBarIcon: ({ color, size }) => {
           let iconName: keyof typeof Ionicons.glyphMap = 'search';
 
-          if (route.name === 'History') {
+          if (route.name === 'Search') {
+            iconName = 'search';
+          } else if (route.name === 'History') {
             iconName = 'time';
           } else if (route.name === 'Watchlist') {
             iconName = 'bookmark';
           } else if (route.name === 'Explore') {
-            iconName = 'globe';
-          } else if (route.name === 'Search') {
-            iconName = 'search';
+            iconName = 'compass';
+          } else if (route.name === 'Profile') {
+            iconName = 'person';
           }
 
-          return <Ionicons name={iconName} size={size} color={'white'} />;
+          return <Ionicons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: '#4CAF50',
+        tabBarActiveTintColor: 'red',
         tabBarInactiveTintColor: 'gray',
-        tabBarStyle: { backgroundColor: '#000' }, // Set tab bar background to black
+        tabBarStyle: { 
+          backgroundColor: '#000',
+          borderTopWidth: 0,
+          elevation: 0,
+          height: 65,
+          paddingBottom:10,
+          paddingTop:10,
+        },
         headerShown: false,
-        tabBarHideOnKeyboard: true, // Hide tab bar on keyboard open
+        tabBarHideOnKeyboard: true,
+        tabBarShowLabel: false // Instagram-like: hide labels for cleaner look
       })}
     >
-      <Tab.Screen
-        name="Search"
-        component={Index}
+      <Tab.Screen 
+        name="Search" 
+        component={Index} 
         options={{
-          tabBarLabel: ({ focused }) => (
-            <Animated.Text
-              layout={Layout} // Use `Layout` for animations
-              style={{ color: focused ? '#4CAF50' : 'gray' }}
-            >
-              Search
-            </Animated.Text>
-          ),
+          tabBarLabel: 'Home'
         }}
       />
-      <Tab.Screen
-        name="History"
-        component={History}
+      <Tab.Screen 
+        name="History" 
+        component={History} 
         options={{
-          tabBarLabel: ({ focused }) => (
-            <Animated.Text
-              layout={Layout} // Use `Layout` for animations
-              style={{ color: focused ? '#4CAF50' : 'gray' }}
-            >
-              History
-            </Animated.Text>
-          ),
+          tabBarLabel: 'History'
         }}
       />
-      <Tab.Screen
-        name="Watchlist"
-        component={WatchListPage}
+      <Tab.Screen 
+        name="Watchlist" 
+        component={WatchListPage} 
         options={{
-          tabBarLabel: ({ focused }) => (
-            <Animated.Text
-              layout={Layout} // Use `Layout` for animations
-              style={{ color: focused ? '#4CAF50' : 'gray' }}
-            >
-              Watchlist
-            </Animated.Text>
-          ),
+          tabBarLabel: 'Watchlist'
         }}
       />
-      <Tab.Screen
-        name="Explore"
-        component={Explore}
+      <Tab.Screen 
+        name="Explore" 
+        component={Explore} 
         options={{
-          tabBarLabel: ({ focused }) => (
-            <Animated.Text
-              layout={Layout} // Use `Layout` for animations
-              style={{ color: focused ? '#4CAF50' : 'gray' }}
-            >
-              Explore
-            </Animated.Text>
-          ),
+          tabBarLabel: 'Explore'
         }}
       />
+      {/* <Tab.Screen 
+        name="Profile" 
+        component={Profile} 
+        options={{
+          tabBarLabel: 'Profile'
+        }}
+      /> */}
     </Tab.Navigator>
   );
 };
