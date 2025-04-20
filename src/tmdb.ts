@@ -26,7 +26,48 @@ export interface TMDBResult {
   first_air_date?: string;
   certification?: string;
   cast?: string[];
+  castIds?: number[];
+  character?: string; // Character played by the person in the movie/show
 }
+
+export interface TMDBPerson {
+  id: number;
+  name: string;
+  profile_path: string | null;
+  biography: string;
+  birthday: string | null;
+  place_of_birth: string | null;
+  known_for_department: string;
+  also_known_as?: string[];
+  deathday?: string | null;
+  gender?: number;
+  popularity?: number;
+  homepage?: string | null;
+}
+
+export const getPersonDetails = async (personId: number): Promise<TMDBPerson> => {
+  return await fetchWithCache(`/person/${personId}`);
+};
+
+export const getPersonCombinedCredits = async (personId: number): Promise<TMDBResult[]> => {
+  const data = await fetchWithCache(`/person/${personId}/combined_credits`);
+  
+  // Process cast items to ensure they have all required fields
+  const castItems = data.cast || [];
+  
+  return castItems.map((item: any) => ({
+    id: item.id,
+    title: item.title || item.name,
+    name: item.name,
+    overview: item.overview || "No description available.",
+    poster_path: item.poster_path,
+    vote_average: parseFloat((item.vote_average || 0).toFixed(1)),
+    media_type: item.media_type || (item.title ? "movie" : "tv"),
+    release_date: item.release_date || null,
+    first_air_date: item.first_air_date || null,
+    character: item.character || null
+  }));
+};
 
 // Helper function to create a cache key
 const createCacheKey = (endpoint: string, params: Record<string, any> = {}) => {
@@ -78,11 +119,13 @@ const fetchCertification = async (id: number, mediaType: "movie" | "tv"): Promis
 };
 
 // Optimized cast fetch - lazy loading
-const fetchCast = async (id: number, mediaType: "movie" | "tv"): Promise<string[] | null> => {
+const fetchCast = async (id: number, mediaType: "movie" | "tv") => {
   try {
     const data = await fetchWithCache(`/${mediaType}/${id}/credits`);
-    const cast = data.cast?.slice(0, 10).map((member: any) => member.name) || [];
-    return cast.length > 0 ? cast : null;
+    const cast = data.cast?.slice(0, 10) || [];
+    return cast.length > 0 
+      ? cast.map((member: any) => ({ name: member.name, id: member.id })) 
+      : null;
   } catch (error) {
     console.error(`Error fetching cast for ${mediaType} with ID ${id}:`, error);
     return null;
@@ -95,7 +138,7 @@ const formatBasicItemData = (item: any): Omit<TMDBResult, 'certification' | 'cas
   title: item.title || item.name,
   overview: item.overview || "No description available.",
   poster_path: item.poster_path,
-  vote_average: parseFloat(item.vote_average?.toFixed(1)) || 0,
+  vote_average: parseFloat((item.vote_average || 0).toFixed(1)),
   media_type: item.media_type || (item.title ? "movie" : "tv"),
   release_date: item.release_date || null,
   first_air_date: item.first_air_date || null,
@@ -115,7 +158,7 @@ export const searchTMDB = async (query: string): Promise<TMDBResult[]> => {
 
 // Get full details for a single item (with cert and cast)
 export const getFullDetails = async (item: TMDBResult): Promise<TMDBResult> => {
-  const [certification, cast] = await Promise.all([
+  const [certification, castData] = await Promise.all([
     fetchCertification(item.id, item.media_type),
     fetchCast(item.id, item.media_type)
   ]);
@@ -123,7 +166,8 @@ export const getFullDetails = async (item: TMDBResult): Promise<TMDBResult> => {
   return {
     ...item,
     certification,
-    cast
+    cast: castData?.map(c => c.name),
+    castIds: castData?.map(c => c.id)
   };
 };
 
@@ -131,6 +175,18 @@ export const getFullDetails = async (item: TMDBResult): Promise<TMDBResult> => {
 export const getImageUrl = (path: string | null, size: string = "w500"): string => {
   if (!path) return "https://via.placeholder.com/500x750?text=No+Image";
   return `https://image.tmdb.org/t/p/${size}${path}`;
+};
+
+// Get media details (movie or TV show)
+export const getMediaDetails = async (id: number, mediaType: "movie" | "tv"): Promise<TMDBResult> => {
+  try {
+    const data = await fetchWithCache(`/${mediaType}/${id}`);
+    const item = formatBasicItemData(data);
+    return await getFullDetails(item);
+  } catch (error) {
+    console.error(`Error fetching ${mediaType} details:`, error);
+    throw new Error(`Failed to fetch ${mediaType} details.`);
+  }
 };
 
 // Optimized trending movies fetch

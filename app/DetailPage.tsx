@@ -62,29 +62,27 @@ const DetailPage = () => {
             <Text style={styles.title}>
               {movie.title || movie.name} ({(movie.release_date || movie.first_air_date)?.split('-')[0] || 'N/A'})
             </Text>
-            <View style={styles.row}>
-              <Text style={styles.rating}>
-                Rating: {movie.vote_average.toFixed(1)}
-              </Text>
-              <Text style={styles.certification}>
-                {movie.certification || 'Unrated'}
-              </Text>
-            </View>
-            <Text style={styles.mediaType}>
-              {movie.media_type === 'movie' ? 'Movie' : 'TV Show'}
+            <Text style={styles.row}>
+                Rating: {movie.vote_average.toFixed(1)} • 
+                {movie.certification || 'Unrated'} • 
+                {movie.media_type === 'movie' ? 'Movie' : 'TV Show'}
             </Text>
           </View>
         </ImageBackground>
       </View>
+
       <View style={styles.contentContainer}>
-        <View style={styles.castContainer}>
-          <Text style={styles.castTitle}>
-            Cast:
-          </Text>
-          <Text style={styles.castText}>
-            {movie.cast?.slice(0, 5).join(', ') || 'N/A'}
-          </Text>
-        </View>
+      <View style={[styles.castContainer, { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' }]}>
+        <Text style={styles.castTitle}>Cast: </Text>
+        {movie.cast?.slice(0, 5).map((name, i) => (
+          <Text
+            key={i}
+            style={styles.castText}
+            onPress={() => navigation.navigate('CastDetails', { personId: movie.castIds![i] })}>
+            {name}{i < movie.cast!.length - 1 ? ', ' : ''}
+          </Text> )) || (<Text style={styles.castText}>N/A</Text>
+        )}
+    </View>
         <Text style={styles.overviewTitle}>Overview</Text>
         <Text style={styles.overviewText}>
           {showFullOverview
@@ -127,7 +125,9 @@ const DetailPage = () => {
           onPress={() =>
             navigation.navigate('Main', {
               screen: 'Search', // Use the bottom tab navigator's route
-              params: { prefillQuery: movie.title || movie.name }, // Pass prefillQuery correctly
+              params: {
+                prefillQuery: `${movie.title || movie.name}${(movie.release_date || movie.first_air_date) && ' ' + (movie.release_date || movie.first_air_date).slice(0, 4)}`
+              }, // Pass prefillQuery correctly
             })
           }
           style={styles.watchlistButton}
@@ -163,11 +163,13 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     padding: 16,
     backgroundColor: 'rgba(0,0,0,0.4)',
-    marginBottom: 20,
+    marginBottom: -22,
+    paddingBottom: 65,
+    
     
   },
   title: {
-    fontSize: width * 0.07,
+    fontSize: width * 0.06,
     fontWeight: 'bold',
     color: '#fff',
   },
@@ -175,6 +177,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 4,
+    color: '#fff',
+    
   },
   rating: {
     fontSize: width * 0.04,
@@ -195,30 +199,30 @@ const styles = StyleSheet.create({
     borderTopEndRadius: 30,
     backgroundColor: '#111',
     zIndex: 10,
-    marginTop: -20,
+    marginTop: -30,
   },
   castContainer: {
     marginBottom: 16,
   },
   castTitle: {
-    fontSize: width * 0.045,
+    fontSize: width * 0.04,
     fontWeight: 'bold',
     color: '#fff',
     marginBottom: 4,
   },
   castText: {
-    fontSize: width * 0.04,
+    fontSize: width * 0.037,
     color: '#fff',
     lineHeight: 20,
   },
   overviewTitle: {
-    fontSize: width * 0.05,
+    fontSize: width * 0.04,
     fontWeight: 'bold',
     color: '#fff',
     marginBottom: 8,
   },
   overviewText: {
-    fontSize: width * 0.04,
+    fontSize: width * 0.037,
     color: '#fff',
     marginBottom: 16,
   },
