@@ -22,7 +22,7 @@ const ITEM_WIDTH = (width - 48) / GRID_COLUMNS;
 const ViewAllPage = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { title, data } = route.params;
+  const { title, data, type, genreId } = route.params;
   
   // State for pagination
   const [allItems, setAllItems] = useState<TMDBResult[]>(data || []);
@@ -33,6 +33,9 @@ const ViewAllPage = () => {
 
   // Get content type from title for API calls
   const getContentType = useCallback(() => {
+    if (type === 'genre' && genreId) {
+      return `genre/${genreId}`;
+    }
     const lowerTitle = title.toLowerCase();
     if (lowerTitle.includes('search:')) return title; // Keep full search query
     if (lowerTitle.includes('tv')) return 'tv';
@@ -40,7 +43,7 @@ const ViewAllPage = () => {
     if (lowerTitle.includes('top')) return 'top';
     if (lowerTitle.includes('indian')) return 'regional';
     return 'trending'; // Default fallback
-  }, [title]);
+  }, [title, type, genreId]);
 
   // Set content type on initial load
   useEffect(() => {

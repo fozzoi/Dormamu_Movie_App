@@ -4,11 +4,11 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  Alert,
   StyleSheet,
   Animated,
   PanResponder,
   Dimensions,
+  Modal,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
@@ -27,6 +27,7 @@ const HistoryPage = () => {
   const navigation = useNavigation();
   const [currentlyOpenSwipeable, setCurrentlyOpenSwipeable] = useState<number | null>(null);
   const animatedValues = useRef<{[key: string]: Animated.Value}>({}).current;
+  const [isAlertVisible, setIsAlertVisible] = useState(false);
 
   const loadHistory = async () => {
     const jsonValue = await AsyncStorage.getItem("searchHistory");
@@ -36,20 +37,16 @@ const HistoryPage = () => {
     }
   };
 
-  const clearHistory = async () => {
-    Alert.alert("Clear History", "Are you sure you want to clear all search history?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Clear",
-        style: "destructive",
-        onPress: async () => {
-          await AsyncStorage.removeItem("searchHistory");
-          setHistory([]);
-        },
-      },
-    ]);
+  const clearHistory = () => {
+    setIsAlertVisible(true);
   };
-  
+
+  const handleClearHistory = async () => {
+    await AsyncStorage.removeItem("searchHistory");
+    setHistory([]);
+    setIsAlertVisible(false);
+  };
+
   const deleteHistoryItem = async (itemIndex: number) => {
     const itemToDelete = history[itemIndex];
     const updatedHistory = history.filter(
@@ -175,8 +172,39 @@ const HistoryPage = () => {
     );
   };
 
+  const renderCustomAlert = () => (
+    <Modal
+      animationType="fade"
+      transparent={true}
+      visible={isAlertVisible}
+      onRequestClose={() => setIsAlertVisible(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>Clear History</Text>
+          <Text style={styles.modalMessage}>Are you sure you want to clear all search history?</Text>
+          <View style={styles.modalButtons}>
+            <TouchableOpacity 
+              style={styles.modalButton} 
+              onPress={() => setIsAlertVisible(false)}
+            >
+              <Text style={styles.modalButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.modalButton, styles.modalButtonDanger]}
+              onPress={handleClearHistory}
+            >
+              <Text style={[styles.modalButtonText, styles.modalButtonTextDanger]}>Clear</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
   return (
     <ScrollView style={styles.container}>
+      {renderCustomAlert()}
       <View style={styles.header}>
         <Text style={styles.title}>Search History</Text>
         <TouchableOpacity 
@@ -304,6 +332,7 @@ const styles = StyleSheet.create({
     width: 100,
     justifyContent: "center",
     alignItems: "center",
+    borderRadius: 5,
   },
   deleteButtonText: {
     color: "white",
@@ -326,5 +355,52 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 8,
     fontSize: 14,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#141414',
+    borderRadius: 8,
+    padding: 20,
+    width: '80%',
+    alignItems: 'center',
+  },
+  modalTitle: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  modalMessage: {
+    color: '#B3B3B3',
+    fontSize: 16,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  modalButton: {
+    padding: 10,
+    flex: 1,
+    marginHorizontal: 5,
+  },
+  modalButtonText: {
+    color: 'white',
+    textAlign: 'center',
+    fontSize: 16,
+  },
+  modalButtonDanger: {
+    backgroundColor: '#E50914',
+    borderRadius: 4,
+  },
+  modalButtonTextDanger: {
+    fontWeight: 'bold',
   },
 });

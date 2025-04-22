@@ -13,6 +13,7 @@ const BottomTabNavigator = () => {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
+        
         tabBarIcon: ({ color, size }) => {
           let iconName: keyof typeof Ionicons.glyphMap = 'search';
 
@@ -31,17 +32,24 @@ const BottomTabNavigator = () => {
           return <Ionicons name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: 'red',
+        // animation: 'fade_from_bottom',
+        navigationBarColor: 'traslucent',
+        statusBarAnimation: 'fade',
+        statusBarTranslucent: true,
+        navigationBarTranslucent: true,
         tabBarInactiveTintColor: 'gray',
         tabBarStyle: { 
-          backgroundColor: '#000',
-          borderTopWidth: 0,
+          backgroundColor: '#141414',
+          borderTopWidth: .19,
+          borderTopColor: 'gray',
           elevation: 0,
-          height: 65,
-          paddingBottom:10,
-          paddingTop:10,
+          height: 70,
+          position: 'fixed',
+          paddingBottom:20,
+          paddingTop:5,
         },
         headerShown: false,
-        tabBarHideOnKeyboard: true,
+        // tabBarHideOnKeyboard: true,
         tabBarShowLabel: false // Instagram-like: hide labels for cleaner look
       })}
     >

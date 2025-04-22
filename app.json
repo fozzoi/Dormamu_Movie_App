@@ -2,7 +2,7 @@
   "expo": {
     "name": "Dormamu",
     "slug": "Dormamu",
-    "version": "2.2.0",
+    "version": "2.3.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "myapp",
@@ -12,7 +12,7 @@
     "newArchEnabled": true,
     "androidNavigationBar":{
       "barStyle":"dark-content",
-      "backgroundColor:":"#ffffff"
+      "backgroundColor:":"#000"
     },
     "android": {
       "adaptiveIcon": {
@@ -35,7 +35,7 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#000000"
         }
       ]
     ],

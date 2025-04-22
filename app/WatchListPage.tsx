@@ -14,8 +14,10 @@ import { getImageUrl } from '../src/tmdb';
 import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 
-const { width } = Dimensions.get('window');
-const CARD_WIDTH = (width - 32) / 2; // Adjusted for 2 cards per row with padding
+const { width, height } = Dimensions.get('window');
+const CARD_WIDTH = width * 0.30; // Slightly smaller for better Netflix look
+const FEATURED_HEIGHT = height * 0.65; // Height for featured content
+
 
 const WatchListPage = () => {
   const [watchlist, setWatchlist] = useState<any[]>([]);
@@ -148,7 +150,7 @@ const WatchListPage = () => {
           data={watchlist}
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderItem}
-          numColumns={2}
+          numColumns={3}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
         />

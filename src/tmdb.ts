@@ -92,6 +92,21 @@ const fetchWithCache = async (endpoint: string, params: Record<string, any> = {}
   }
 };
 
+// NEW: Get similar movies or TV shows
+export const getSimilarMedia = async (id: number, mediaType: "movie" | "tv", page: number = 1): Promise<TMDBResult[]> => {
+  try {
+    const data = await fetchWithCache(`/${mediaType}/${id}/similar`, { page });
+    
+    return data.results.map((item: any) => ({
+      ...formatBasicItemData(item),
+      media_type: mediaType
+    }));
+  } catch (error) {
+    console.error(`Error fetching similar ${mediaType} content:`, error);
+    return [];
+  }
+};
+
 // Optimized certification fetch - lazy loading
 const fetchCertification = async (id: number, mediaType: "movie" | "tv"): Promise<string | null> => {
   const endpoint = mediaType === "movie" 
@@ -124,7 +139,12 @@ const fetchCast = async (id: number, mediaType: "movie" | "tv") => {
     const data = await fetchWithCache(`/${mediaType}/${id}/credits`);
     const cast = data.cast?.slice(0, 10) || [];
     return cast.length > 0 
-      ? cast.map((member: any) => ({ name: member.name, id: member.id })) 
+      ? cast.map((member: any) => ({ 
+          name: member.name, 
+          id: member.id,
+          profile_path: member.profile_path,
+          character: member.character
+        })) 
       : null;
   } catch (error) {
     console.error(`Error fetching cast for ${mediaType} with ID ${id}:`, error);
@@ -158,17 +178,24 @@ export const searchTMDB = async (query: string, page: number = 1): Promise<TMDBR
 
 // Get full details for a single item (with cert and cast)
 export const getFullDetails = async (item: TMDBResult): Promise<TMDBResult> => {
-  const [certification, castData] = await Promise.all([
-    fetchCertification(item.id, item.media_type),
-    fetchCast(item.id, item.media_type)
-  ]);
-  
-  return {
-    ...item,
-    certification,
-    cast: castData?.map(c => c.name),
-    castIds: castData?.map(c => c.id)
-  };
+  try {
+    const [certification, castData] = await Promise.all([
+      fetchCertification(item.id, item.media_type),
+      fetchCast(item.id, item.media_type)
+    ]);
+    
+    return {
+      ...item,
+      certification,
+      cast: castData?.map(c => c.name),
+      castIds: castData?.map(c => c.id),
+      cast_profiles: castData?.map(c => c.profile_path),
+      characters: castData?.map(c => c.character)
+    };
+  } catch (error) {
+    console.error("Error in getFullDetails:", error);
+    return item;
+  }
 };
 
 // Helper to get poster image URL
@@ -272,8 +299,19 @@ export const fetchAllDiscoveryContent = async () => {
   }
 };
 
-// ADD THIS FUNCTION: Fetch more content by type with pagination
+// Fetch more content by type with pagination
 export const fetchMoreContentByType = async (type: string, page: number = 1): Promise<TMDBResult[]> => {
+  if (type.startsWith('genre/')) {
+    const genreId = parseInt(type.split('/')[1]);
+    return await getMoviesByGenre(genreId, page);
+  }
+  
+  // NEW: Added support for similar media type
+  if (type.startsWith('similar/')) {
+    const [mediaType, id] = type.split('/').slice(1);
+    return await getSimilarMedia(parseInt(id), mediaType as "movie" | "tv", page);
+  }
+
   switch (type.toLowerCase()) {
     case 'movie':
     case 'trending':
@@ -292,5 +330,71 @@ export const fetchMoreContentByType = async (type: string, page: number = 1): Pr
       }
       // Default to trending movies
       return await getTrendingMovies(page);
+  }
+};
+
+export const searchPeople = async (query: string, page: number = 1): Promise<TMDBPerson[]> => {
+  try {
+    const data = await fetchWithCache("/search/person", { query, page });
+    return data.results.map((person: any) => ({
+      id: person.id,
+      name: person.name,
+      profile_path: person.profile_path,
+      popularity: person.popularity,
+      known_for_department: person.known_for_department
+    }));
+  } catch (error) {
+    console.error("Error searching people:", error);
+    return [];
+  }
+};
+
+export const searchGenres = async (query: string): Promise<{ id: number; name: string }[]> => {
+  try {
+    // First get all genres
+    const [movieGenres, tvGenres] = await Promise.all([
+      fetchWithCache("/genre/movie/list"),
+      fetchWithCache("/genre/tv/list")
+    ]);
+
+    // Combine and deduplicate genres
+    const allGenres = [...movieGenres.genres, ...tvGenres.genres];
+    const uniqueGenres = Array.from(new Map(allGenres.map(g => [g.id, g])).values());
+
+    // Filter genres based on query
+    return uniqueGenres.filter(genre => 
+      genre.name.toLowerCase().includes(query.toLowerCase())
+    );
+  } catch (error) {
+    console.error("Error fetching genres:", error);
+    return [];
+  }
+};
+
+export const getMovieGenres = async (movieId: number): Promise<{ id: number; name: string }[]> => {
+  try {
+    const data = await fetchWithCache(`/movie/${movieId}`);
+    return data.genres || [];
+  } catch (error) {
+    console.error("Error fetching movie genres:", error);
+    return [];
+  }
+};
+
+export const getMoviesByGenre = async (genreId: number, page: number = 1): Promise<TMDBResult[]> => {
+  try {
+    const data = await fetchWithCache("/discover/movie", {
+      with_genres: genreId,
+      sort_by: "popularity.desc",
+      page
+    });
+    
+    return data.results.map((item: any) => ({
+      ...formatBasicItemData(item),
+      media_type: "movie"
+    }));
+  } catch (error) {
+    console.error(`Error fetching movies for genre ${genreId}:`, error);
+    return [];
   }
 };

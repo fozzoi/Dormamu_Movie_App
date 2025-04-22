@@ -1,13 +1,11 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, memo } from 'react';
 import {
   View,
   Text,
-  FlatList,
   TouchableOpacity,
   Image,
   Alert,
   Dimensions,
-  ScrollView,
   StyleSheet,
   RefreshControl,
   StatusBar,
@@ -22,13 +20,15 @@ import {
   getImageUrl,
   getFullDetails,
   TMDBResult,
+  searchPeople,
+  searchGenres,
 } from '../src/tmdb';
 import LoadingCard from './LoadingCard';
 import { LinearGradient } from 'expo-linear-gradient';
-import { transparent } from 'react-native-paper/lib/typescript/styles/themes/v2/colors';
+import { FlashList } from '@shopify/flash-list';
 
 const { width, height } = Dimensions.get('window');
-const CARD_WIDTH = width * 0.28; // Slightly smaller for better Netflix look
+const CARD_WIDTH = width * 0.30; // Slightly smaller for better Netflix look
 const FEATURED_HEIGHT = height * 0.65; // Height for featured content
 
 // Card component with animation
@@ -59,7 +59,7 @@ const MovieCard = ({ item, onPress, index = 0, featured = false }) => {
               <Text style={styles.featuredTitle}>{item.title || item.name}</Text>
               <View style={styles.featuredMeta}>
                 <Text style={styles.featuredRating}>
-                  {item.vote_average ? item.vote_average.toFixed(1) : '?'} ★
+                  {item.vote_average ? item.vote_average.toFixed(1) : '?' } ★
                 </Text>
                 <Text style={styles.featuredYear}>
                   {(item.release_date || item.first_air_date || '').substring(0, 4)}
@@ -83,26 +83,39 @@ const MovieCard = ({ item, onPress, index = 0, featured = false }) => {
   );
 };
 
-const Section = ({ title, data, navigation, isLoading = false }) => (
-  <View style={styles.sectionContainer}>
-    <View style={styles.sectionHeader}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <TouchableOpacity 
-        onPress={() => navigation.navigate('ViewAll', { title, data })}
-        style={styles.viewAllButton}
-      >
-        <Text style={styles.viewAllText}>View All</Text>
-        <MaterialIcons name="chevron-right" size={16} color="#AAAAAA" />
-      </TouchableOpacity>
-    </View>
-    {isLoading ? (
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        {Array.from({ length: 5 }).map((_, index) => (
-          <LoadingCard key={index} index={index} delay={index} />
-        ))}
-      </ScrollView>
-    ) : (
-      <FlatList
+const Section = memo(({ title, data, navigation, isLoading = false }) => {
+  if (isLoading) {
+    return (
+      <View style={styles.sectionContainer}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>{title}</Text>
+        </View>
+        <FlashList
+          horizontal
+          data={[1, 2, 3, 4, 5]}
+          renderItem={({ index }) => (
+            <LoadingCard key={index} index={index} delay={index} />
+          )}
+          estimatedItemSize={CARD_WIDTH}
+          showsHorizontalScrollIndicator={false}
+        />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.sectionContainer}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        <TouchableOpacity 
+          onPress={() => navigation.navigate('ViewAll', { title, data })}
+          style={styles.viewAllButton}
+        >
+          <Text style={styles.viewAllText}>View All</Text>
+          <MaterialIcons name="chevron-right" size={16} color="#AAAAAA" />
+        </TouchableOpacity>
+      </View>
+      <FlashList
         horizontal
         data={data}
         renderItem={({ item, index }) => (
@@ -114,19 +127,18 @@ const Section = ({ title, data, navigation, isLoading = false }) => (
                 const fullDetails = await getFullDetails(item);
                 navigation.navigate('Detail', { movie: fullDetails });
               } catch (error) {
-                console.error("Error fetching details:", error);
                 navigation.navigate('Detail', { movie: item });
               }
             }}
           />
         )}
-        keyExtractor={(item) => item.id.toString()}
+        estimatedItemSize={CARD_WIDTH}
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.sectionListContent}
+        keyExtractor={(item) => item.id.toString()}
       />
-    )}
-  </View>
-);
+    </View>
+  );
+});
 
 const ExplorePage = () => {
   const [trendingMovies, setTrendingMovies] = useState([]);
@@ -139,20 +151,39 @@ const ExplorePage = () => {
   const [contentLoading, setContentLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [featuredContent, setFeaturedContent] = useState(null);
+  const [peopleResults, setPeopleResults] = useState([]);
+  const [genreResults, setGenreResults] = useState([]);
   const navigation = useNavigation();
 
   const handleSearch = useCallback(async () => {
     if (!query.trim()) return;
     setLoading(true);
     try {
-      const results = await searchTMDB(query.trim());
+      const [results, people, genres] = await Promise.all([
+        searchTMDB(query.trim()),
+        searchPeople(query.trim()),
+        searchGenres(query.trim())
+      ]);
 
-      // Filter: Only results that have poster and rating > 0
+      // Filter main results
       const filtered = results.filter((item) =>
         (item.title || item.name)?.toLowerCase().includes(query.trim().toLowerCase()) &&
         item.poster_path
       );
       setTmdbResults(filtered);
+      
+      // Filter people results
+      const filteredPeople = people.filter(person => 
+        person.profile_path && person.popularity > 1
+      );
+      setPeopleResults(filteredPeople);
+
+      // Filter genre results
+      const filteredGenres = genres.filter(genre =>
+        genre.name.toLowerCase().includes(query.trim().toLowerCase())
+      );
+      setGenreResults(filteredGenres);
+
     } catch (error) {
       Alert.alert('Error', 'Search failed');
     } finally {
@@ -194,6 +225,118 @@ const ExplorePage = () => {
       </View>
     </Animated.View>
   );
+
+  const renderSearchContent = () => {
+    if (loading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator color="#E50914" size="large" />
+        </View>
+      );
+    }
+
+    return (
+      <FlashList
+        data={[
+          {
+            type: 'heading',
+            title: 'People',
+            show: peopleResults.length > 0
+          },
+          {
+            type: 'people',
+            data: peopleResults.slice(0, 5),
+            show: peopleResults.length > 0
+          },
+          {
+            type: 'heading',
+            title: 'Genres',
+            show: genreResults.length > 0
+          },
+          {
+            type: 'genres',
+            data: genreResults,
+            show: genreResults.length > 0
+          },
+          {
+            type: 'heading',
+            title: `Results for "${query}" (${tmdbResults.length})`,
+            show: tmdbResults.length > 0
+          },
+          {
+            type: 'results',
+            data: tmdbResults.slice(0, 6),
+            show: tmdbResults.length > 0
+          }
+        ].filter(item => item.show)}
+        renderItem={({ item }) => {
+          switch (item.type) {
+            case 'heading':
+              return (
+                <Text style={styles.searchHeading}>{item.title}</Text>
+              );
+            case 'people':
+              return (
+                <FlashList
+                  horizontal
+                  data={item.data}
+                  renderItem={({ item: person }) => (
+                    <TouchableOpacity
+                      onPress={() => navigation.navigate('CastDetails', { personId: person.id })}
+                      style={styles.personItem}
+                    >
+                      <Image
+                        source={{ uri: getImageUrl(person.profile_path) }}
+                        style={styles.personImage}
+                      />
+                      <Text style={styles.personName} numberOfLines={2}>
+                        {person.name}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  estimatedItemSize={100}
+                  showsHorizontalScrollIndicator={false}
+                  keyExtractor={person => `person-${person.id}`}
+                />
+              );
+            case 'genres':
+              return (
+                <FlashList
+                  horizontal
+                  data={item.data}
+                  renderItem={({ item: genre }) => (
+                    <TouchableOpacity
+                      onPress={() => navigation.navigate('ViewAll', { 
+                        title: `${genre.name} Movies & Shows`,
+                        genreId: genre.id
+                      })}
+                      style={styles.genreItem}
+                    >
+                      <Text style={styles.genreName}>{genre.name}</Text>
+                    </TouchableOpacity>
+                  )}
+                  estimatedItemSize={100}
+                  showsHorizontalScrollIndicator={false}
+                  keyExtractor={genre => `genre-${genre.id}`}
+                />
+              );
+            case 'results':
+              return (
+                <FlashList
+                  data={item.data}
+                  renderItem={renderSearchItem}
+                  numColumns={3}
+                  estimatedItemSize={CARD_WIDTH * 1.5}
+                  keyExtractor={result => `search-${result.id}`}
+                />
+              );
+          }
+        }}
+        estimatedItemSize={150}
+        keyExtractor={(item, index) => `section-${index}`}
+      />
+    );
+  };
 
   const fetchDiscoveryContent = useCallback(async () => {
     setContentLoading(true);
@@ -275,76 +418,34 @@ const ExplorePage = () => {
         </View>
       </View>
 
-      {/* Search Results */}
       {inSearchMode ? (
-        <View style={styles.searchResultsContainer}>
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator color="#E50914" size="large" />
-            </View>
-          ) : tmdbResults.length > 0 ? (
-            <>
-              <View style={styles.searchResultsHeader}>
-                <Text style={styles.searchResultsTitle}>
-                  Results for "{query}" ({tmdbResults.length})
-                </Text>
-                {tmdbResults.length > 6 && (
-                  <TouchableOpacity onPress={viewAllSearchResults}>
-                    <Text style={styles.viewAllSearchText}>View All</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-              <FlatList
-                data={tmdbResults.slice(0, 6)} // Show first 6 results
-                renderItem={renderSearchItem}
-                keyExtractor={(item) => `search-${item.id}`}
-                numColumns={3}
-                contentContainerStyle={styles.searchResultsGrid}
-              />
-            </>
-          ) : query.length > 2 ? (
-            <View style={styles.noResultsContainer}>
-              <MaterialIcons name="search-off" size={50} color="#8C8C8C" />
-              <Text style={styles.noResultsText}>No results found for "{query}"</Text>
-              <Text style={styles.noResultsSubText}>
-                Try different keywords or check the spelling
-              </Text>
-            </View>
-          ) : null}
-        </View>
+        renderSearchContent()
       ) : (
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
+        <FlashList
+          data={[
+            { type: 'section', title: 'Trending Movies', data: trendingMovies },
+            { type: 'section', title: 'Trending TV Shows', data: trendingTV },
+            { type: 'section', title: 'Top Rated', data: topRated },
+            { type: 'section', title: 'Popular in Your Region', data: regional }
+          ]}
+          renderItem={({ item }) => (
+            <Section
+              title={item.title}
+              data={item.data}
+              navigation={navigation}
+              isLoading={contentLoading}
+            />
+          )}
+          estimatedItemSize={300}
+          keyExtractor={(item) => item.title}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#E50914" />
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={onRefresh}
+              tintColor="#E50914"
+            />
           }
-        >
-          {/* Sections */}
-          <Section
-            title="Trending Movies"
-            data={trendingMovies}
-            navigation={navigation}
-            isLoading={contentLoading}
-          />
-          <Section
-            title="Trending TV Shows"
-            data={trendingTV}
-            navigation={navigation}
-            isLoading={contentLoading}
-          />
-          <Section
-            title="Top Rated"
-            data={topRated}
-            navigation={navigation}
-            isLoading={contentLoading}
-          />
-          <Section
-            title="Popular in Your Region"
-            data={regional}
-            navigation={navigation}
-            isLoading={contentLoading}
-          />
-        </ScrollView>
+        />
       )}
     </View>
   );
@@ -526,12 +627,15 @@ const styles = StyleSheet.create({
     paddingBottom: 15,
   },
   searchItem: {
-    flex: 1/3,
-    padding: 4,
+    marginRight: 8,
+    width: CARD_WIDTH,
+    borderRadius: 4,
+    overflow: 'hidden',
+    flex: 1 / 3,
   },
   searchImage: {
-    width: '100%',
-    height: width / 3 * 1.5,
+    width: CARD_WIDTH,
+    height: CARD_WIDTH * 1.5,
     borderRadius: 4,
   },
   searchItemTitle: {
@@ -561,6 +665,41 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
     textAlign: 'center',
+  },
+  personItem: {
+    width: 100,
+    marginRight: 12,
+    alignItems: 'center',
+  },
+  personImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginBottom: 8,
+  },
+  personName: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    textAlign: 'center',
+    width: 90,
+  },
+  genreItem: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 8,
+  },
+  genreName: {
+    color: '#FFFFFF',
+    fontSize: 14,
+  },
+  searchHeading: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginVertical: 16,
+    marginHorizontal: 16,
   },
 });
 
