@@ -181,54 +181,57 @@ const DetailPage = () => {
   );
 
   // New similar movies section
-  const renderSimilarMoviesSection = () => (
-    <View style={styles.sectionContainer}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Similar Movies</Text>
-        {similarMovies.length > 0 && (
-          <TouchableOpacity onPress={() => navigation.navigate('SimilarMovies', { 
-            title: `Similar to ${movie.title || movie.name}`,
-            movieId: movie.id,
-            mediaType: movie.media_type
-          })}>
-            <Text style={styles.viewAll}>View All</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-      
-      {isLoading ? (
-        <Text style={styles.loadingText}>Loading similar titles...</Text>
-      ) : similarMovies.length > 0 ? (
-        <FlatList
-          horizontal
-          data={similarMovies.slice(0, 10)}
-          keyExtractor={(item) => `similar-${item.id}`}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.similarList}
-          renderItem={({ item }) => (
-            <TouchableOpacity 
-              style={styles.similarItem}
-              onPress={() => navigation.push('Details', { movie: item })}
-            >
-              <Image
-                source={{ uri: getImageUrl(item.poster_path, 'w342') }}
-                style={styles.similarImage}
-              />
-              <Text style={styles.similarTitle} numberOfLines={2}>
-                {item.title || item.name}
-              </Text>
-              <View style={styles.ratingRow}>
-                <Ionicons name="star" size={12} color="#E50914" />
-                <Text style={styles.similarRating}>{item.vote_average.toFixed(1)}</Text>
-              </View>
-            </TouchableOpacity>
-          )}
-        />
-      ) : (
-        <Text style={styles.noSimilarText}>No similar titles found</Text>
+  // In DetailPage.tsx, modify the renderSimilarMoviesSection function:
+
+const renderSimilarMoviesSection = () => (
+  <View style={styles.sectionContainer}>
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>Similar Movies</Text>
+      {similarMovies.length > 0 && (
+        <TouchableOpacity onPress={() => navigation.navigate('SimilarList', { 
+          similarMovies: similarMovies,  // Pass the already fetched similar movies
+          originalMovieId: movie.id,  // Pass the original movie ID for reference
+          mediaType: movie.media_type,  // Pass the media type
+          title: `Similar to ${movie.title || movie.name}`  // Pass a title
+        })}>
+          <Text style={styles.viewAll}>View All</Text>
+        </TouchableOpacity>
       )}
     </View>
-  );
+    
+    {isLoading ? (
+      <Text style={styles.loadingText}>Loading similar titles...</Text>
+    ) : similarMovies.length > 0 ? (
+      <FlatList
+        horizontal
+        data={similarMovies.slice(0, 10)}
+        keyExtractor={(item) => `similar-${item.id}`}
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.similarList}
+        renderItem={({ item }) => (
+          <TouchableOpacity 
+            style={styles.similarItem}
+            onPress={() => navigation.push('Details', { movie: item })}
+          >
+            <Image
+              source={{ uri: getImageUrl(item.poster_path, 'w342') }}
+              style={styles.similarImage}
+            />
+            <Text style={styles.similarTitle} numberOfLines={2}>
+              {item.title || item.name}
+            </Text>
+            <View style={styles.ratingRow}>
+              <Ionicons name="star" size={12} color="#E50914" />
+              <Text style={styles.similarRating}>{item.vote_average.toFixed(1)}</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+      />
+    ) : (
+      <Text style={styles.noSimilarText}>No similar titles found</Text>
+    )}
+  </View>
+);
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
