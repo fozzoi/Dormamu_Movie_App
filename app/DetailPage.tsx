@@ -188,11 +188,10 @@ const renderSimilarMoviesSection = () => (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>Similar Movies</Text>
       {similarMovies.length > 0 && (
-        <TouchableOpacity onPress={() => navigation.navigate('SimilarList', { 
-          similarMovies: similarMovies,  // Pass the already fetched similar movies
-          originalMovieId: movie.id,  // Pass the original movie ID for reference
-          mediaType: movie.media_type,  // Pass the media type
-          title: `Similar to ${movie.title || movie.name}`  // Pass a title
+        <TouchableOpacity onPress={() => navigation.navigate('ListDetails', { 
+          movies: similarMovies,
+          contentType: 'similar',
+          title: `Similar to ${movie.title || movie.name}`
         })}>
           <Text style={styles.viewAll}>View All</Text>
         </TouchableOpacity>
@@ -211,7 +210,7 @@ const renderSimilarMoviesSection = () => (
         renderItem={({ item }) => (
           <TouchableOpacity 
             style={styles.similarItem}
-            onPress={() => navigation.push('Details', { movie: item })}
+            onPress={() => navigation.navigate('ListDetails', { movie: item })}
           >
             <Image
               source={{ uri: getImageUrl(item.poster_path, 'w342') }}
