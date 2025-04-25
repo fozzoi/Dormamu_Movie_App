@@ -9,12 +9,13 @@ import {
   Linking,
   FlatList,
   Image,
+  ActivityIndicator,
 } from 'react-native';
-import { Text, Button, Chip } from 'react-native-paper';
-import { getImageUrl, getMovieGenres, getSimilarMedia } from '../src/tmdb';
+import { Text, Button, Chip, Divider } from 'react-native-paper';
+import { getImageUrl, getMovieGenres, getSimilarMedia, getSeasonEpisodes, TMDBEpisode, TMDBSeason } from '../src/tmdb';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons, Feather, AntDesign } from '@expo/vector-icons';
 
 interface HistoryItem {
   query: string;
@@ -30,10 +31,14 @@ const DetailPage = () => {
 
   const [isInWatchlist, setIsInWatchlist] = useState(false);
   const [showFullOverview, setShowFullOverview] = useState(false);
-  const [director, setDirector] = useState<{ name: string, id: number } | null>(null);
   const [genres, setGenres] = useState([]);
   const [similarMovies, setSimilarMovies] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // New states for TV show seasons
+  const [selectedSeason, setSelectedSeason] = useState<number | null>(null);
+  const [episodes, setEpisodes] = useState<TMDBEpisode[]>([]);
+  const [loadingEpisodes, setLoadingEpisodes] = useState(false);
 
   // Update cast mapping to include all required data
   const castWithCharacters = useMemo(() => {
@@ -48,20 +53,22 @@ const DetailPage = () => {
 
   useEffect(() => {
     checkIfInWatchlist();
-    fetchDirector();
     fetchGenres();
     fetchSimilarMovies();
+    
+    // Set the first season as selected by default if it's a TV show
+    if (movie.media_type === 'tv' && movie.seasons && movie.seasons.length > 0) {
+      const firstSeason = movie.seasons.find(s => s.season_number > 0);
+      if (firstSeason) {
+        setSelectedSeason(firstSeason.season_number);
+        fetchEpisodes(firstSeason.season_number);
+      }
+    }
   }, []);
-
-  const fetchDirector = async () => {
-    // This would be replaced with actual API call
-    // For now using mock data
-    setDirector({ name: "Christopher Nolan", id: 525 });
-  };
 
   const fetchGenres = async () => {
     try {
-      const movieGenres = await getMovieGenres(movie.id);
+      const movieGenres = await getMovieGenres(movie.id, movie.media_type);
       setGenres(movieGenres);
     } catch (error) {
       console.error('Failed to fetch genres:', error);
@@ -77,6 +84,20 @@ const DetailPage = () => {
       console.error('Failed to fetch similar movies:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+  
+  // New function to fetch episodes for a season
+  const fetchEpisodes = async (seasonNumber: number) => {
+    setLoadingEpisodes(true);
+    try {
+      const seasonEpisodes = await getSeasonEpisodes(movie.id, seasonNumber);
+      setEpisodes(seasonEpisodes);
+    } catch (error) {
+      console.error('Failed to fetch episodes:', error);
+      setEpisodes([]);
+    } finally {
+      setLoadingEpisodes(false);
     }
   };
 
@@ -125,9 +146,6 @@ const DetailPage = () => {
     });
   };
   
-  
-  
-
   const handleViewGenres = () => {
     navigation.navigate('ViewAll', { 
       title: 'Genres', 
@@ -135,6 +153,22 @@ const DetailPage = () => {
       type: 'genres',
       movieId: movie.id 
     });
+  };
+  
+  // Handle season selection
+  const handleSeasonSelect = (seasonNumber: number) => {
+    setSelectedSeason(seasonNumber);
+    fetchEpisodes(seasonNumber);
+  };
+
+  // Format minutes to hours and minutes
+  const formatRuntime = (minutes: number | null) => {
+    if (!minutes) return 'N/A';
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return hours > 0 
+      ? `${hours}h ${remainingMinutes}m` 
+      : `${remainingMinutes}m`;
   };
 
   // Update cast section render
@@ -180,57 +214,179 @@ const DetailPage = () => {
     </View>
   );
 
-  // New similar movies section
-  // In DetailPage.tsx, modify the renderSimilarMoviesSection function:
-
-const renderSimilarMoviesSection = () => (
-  <View style={styles.sectionContainer}>
-    <View style={styles.sectionHeader}>
-      <Text style={styles.sectionTitle}>Similar Movies</Text>
-      {similarMovies.length > 0 && (
-        <TouchableOpacity onPress={() => navigation.navigate('ListDetails', { 
-          movies: similarMovies,
-          contentType: 'similar',
-          title: `Similar to ${movie.title || movie.name}`
-        })}>
-          <Text style={styles.viewAll}>View All</Text>
-        </TouchableOpacity>
-      )}
-    </View>
-    
-    {isLoading ? (
-      <Text style={styles.loadingText}>Loading similar titles...</Text>
-    ) : similarMovies.length > 0 ? (
-      <FlatList
-        horizontal
-        data={similarMovies.slice(0, 10)}
-        keyExtractor={(item) => `similar-${item.id}`}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.similarList}
-        renderItem={({ item }) => (
-          <TouchableOpacity 
-            style={styles.similarItem}
-            onPress={() => navigation.navigate('ListDetails', { movie: item })}
-          >
-            <Image
-              source={{ uri: getImageUrl(item.poster_path, 'w342') }}
-              style={styles.similarImage}
-            />
-            <Text style={styles.similarTitle} numberOfLines={2}>
-              {item.title || item.name}
-            </Text>
-            <View style={styles.ratingRow}>
-              <Ionicons name="star" size={12} color="#E50914" />
-              <Text style={styles.similarRating}>{item.vote_average.toFixed(1)}</Text>
-            </View>
+  // Similar movies section
+  const renderSimilarMoviesSection = () => (
+    <View style={styles.sectionContainer}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>
+          Similar {movie.media_type === 'movie' ? 'Movies' : 'Shows'}
+        </Text>
+        {similarMovies.length > 0 && (
+          <TouchableOpacity onPress={() => navigation.navigate('ListDetails', { 
+            movies: similarMovies,
+            contentType: 'similar',
+            title: `Similar to ${movie.title || movie.name}`,
+            initialSelectedMovie: similarMovies[0]
+          })}>
+            <Text style={styles.viewAll}>View All</Text>
           </TouchableOpacity>
         )}
-      />
-    ) : (
-      <Text style={styles.noSimilarText}>No similar titles found</Text>
-    )}
-  </View>
-);
+      </View>
+      
+      {isLoading ? (
+        <Text style={styles.loadingText}>Loading similar titles...</Text>
+      ) : similarMovies.length > 0 ? (
+        <FlatList
+          horizontal
+          data={similarMovies.slice(0, 10)}
+          keyExtractor={(item) => `similar-${item.id}`}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.similarList}
+          renderItem={({ item }) => (
+            <TouchableOpacity 
+              style={styles.similarItem}
+              onPress={() => navigation.navigate('ListDetails', { 
+                movies: similarMovies,
+                contentType: 'similar',
+                title: `Similar to ${movie.title || movie.name}`,
+                initialSelectedMovie: item
+              })}
+            >
+              <Image
+                source={{ uri: getImageUrl(item.poster_path, 'w342') }}
+                style={styles.similarImage}
+              />
+              <Text style={styles.similarTitle} numberOfLines={2}>
+                {item.title || item.name}
+              </Text>
+              <View style={styles.ratingRow}>
+                <Ionicons name="star" size={12} color="#E50914" />
+                <Text style={styles.similarRating}>{item.vote_average.toFixed(1)}</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+        />
+      ) : (
+        <Text style={styles.noSimilarText}>No similar titles found</Text>
+      )}
+    </View>
+  );
+  
+  // TV show seasons section
+  const renderSeasonsSection = () => {
+    if (movie.media_type !== 'tv' || !movie.seasons || movie.seasons.length === 0) {
+      return null;
+    }
+    
+    // Filter out season 0 (specials) if there are other seasons
+    const filteredSeasons = movie.seasons.length > 1 
+      ? movie.seasons.filter(season => season.season_number > 0)
+      : movie.seasons;
+      
+    return (
+      <View style={styles.sectionContainer}>
+        <Text style={styles.sectionTitle}>Seasons</Text>
+        
+        {/* Season Tabs */}
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.seasonTabsContainer}
+        >
+          {filteredSeasons.map((season: TMDBSeason) => (
+            <TouchableOpacity
+              key={`season-${season.id}`}
+              style={[
+                styles.seasonTab,
+                selectedSeason === season.season_number && styles.seasonTabActive
+              ]}
+              onPress={() => handleSeasonSelect(season.season_number)}
+            >
+              <Text 
+                style={[
+                  styles.seasonTabText,
+                  selectedSeason === season.season_number && styles.seasonTabTextActive
+                ]}
+              >
+                {season.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+        
+        {/* Episodes List */}
+        {selectedSeason !== null && (
+          <View style={styles.episodesContainer}>
+            {loadingEpisodes ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#E50914" />
+                <Text style={styles.loadingText}>Loading episodes...</Text>
+              </View>
+            ) : episodes.length > 0 ? (
+              episodes.map((episode) => (
+                <View key={`episode-${episode.id}`} style={styles.episodeCard}>
+                  <View style={styles.episodeHeader}>
+                    <Image 
+                      source={{ 
+                        uri: episode.still_path 
+                          ? getImageUrl(episode.still_path, 'w300') 
+                          : 'https://via.placeholder.com/300x169?text=No+Image'
+                      }}
+                      style={styles.episodeImage}
+                    />
+                    <View style={styles.episodeOverlay}>
+                      <Text style={styles.episodeNumber}>
+                        E{episode.episode_number}
+                      </Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.episodeContent}>
+                    <View style={styles.episodeContentHeader}>
+                      <Text style={styles.episodeTitle} numberOfLines={1}>
+                        {episode.name}
+                      </Text>
+                      <View style={styles.episodeRatingContainer}>
+                        <Ionicons name="star" size={14} color="#E50914" />
+                        <Text style={styles.episodeRating}>{episode.vote_average.toFixed(1)}</Text>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.episodeMetaRow}>
+                      {episode.air_date && (
+                        <Text style={styles.episodeMetaText}>
+                          {new Date(episode.air_date).toLocaleDateString()}
+                        </Text>
+                      )}
+                      {episode.runtime && (
+                        <>
+                          <Text style={styles.metaDot}>•</Text>
+                          <Text style={styles.episodeMetaText}>
+                            {formatRuntime(episode.runtime)}
+                          </Text>
+                        </>
+                      )}
+                    </View>
+                    
+                    <Text 
+                      style={styles.episodeOverview} 
+                      numberOfLines={2}
+                    >
+                      {episode.overview || 'No description available.'}
+                    </Text>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.noEpisodesText}>
+                No episodes information available
+              </Text>
+            )}
+          </View>
+        )}
+      </View>
+    );
+  };
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -323,7 +479,7 @@ const renderSimilarMoviesSection = () => (
                 style={styles.genreChip} 
                 textStyle={styles.genreChipText}
                 onPress={() => navigation.navigate('ViewAll', { 
-                  title: `${genre.name} Movies`,
+                  title: `${genre.name} ${movie.media_type === 'movie' ? 'Movies' : 'Shows'}`,
                   genreId: genre.id,
                   type: 'genre',
                   data: []  // Start with empty data, let ViewAll fetch it
@@ -339,36 +495,41 @@ const renderSimilarMoviesSection = () => (
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>Overview</Text>
           <Text style={styles.overviewText}>
-            {showFullOverview
+            {showFullOverview || movie.overview.length <= 150
               ? `${movie.overview} `
               : `${movie.overview.slice(0, 150)}... `}
-            <Text
-              onPress={() => setShowFullOverview(!showFullOverview)}
-              style={styles.showMore}
-            >
-              {showFullOverview ? 'Show Less' : 'Show More'}
-            </Text>
+            {movie.overview.length > 150 && (
+              <Text
+                onPress={() => setShowFullOverview(!showFullOverview)}
+                style={styles.showMore}
+              >
+                {showFullOverview ? 'Show Less' : 'Show More'}
+              </Text>
+            )}
           </Text>
         </View>
         
-        {/* Director Section */}
-        {director && (
+        {/* Director Section - only for movies */}
+        {movie.media_type === 'movie' && movie.director && (
           <View style={styles.sectionContainer}>
             <Text style={styles.sectionTitle}>Director</Text>
             <TouchableOpacity 
               style={styles.directorContainer}
-              onPress={() => navigation.navigate('CastDetails', { personId: director.id })}
+              onPress={() => navigation.navigate('CastDetails', { personId: movie.director.id })}
             >
-              <Text style={styles.directorName}>{director.name}</Text>
+              <Text style={styles.directorName}>{movie.director.name}</Text>
               <Feather name="chevron-right" size={20} color="#E50914" />
             </TouchableOpacity>
           </View>
         )}
         
+        {/* TV Show Seasons and Episodes - only for TV shows */}
+        {movie.media_type === 'tv' && renderSeasonsSection()}
+        
         {/* Cast Section */}
         {castWithCharacters.length > 0 && renderCastSection()}
         
-        {/* Similar Movies Section */}
+        {/* Similar Movies/Shows Section */}
         {renderSimilarMoviesSection()}
       </View>
     </ScrollView>
@@ -559,6 +720,7 @@ const styles = StyleSheet.create({
     fontSize: width * 0.035,
     color: '#fff',
     fontWeight: '600',
+    marginTop: 4,
   },
   characterName: {
     fontSize: width * 0.03,
@@ -602,6 +764,112 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   noSimilarText: {
+    color: '#aaa',
+    fontSize: width * 0.035,
+    padding: 16,
+    textAlign: 'center',
+  },
+  // TV Show Seasons & Episodes Styles
+  seasonTabsContainer: {
+    paddingVertical: 8,
+  },
+  seasonTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginRight: 10,
+    borderRadius: 20,
+    backgroundColor: '#282828',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  seasonTabActive: {
+    backgroundColor: '#333',
+    borderColor: '#E50914',
+  },
+  seasonTabText: {
+    color: '#ddd',
+    fontSize: width * 0.035,
+    fontWeight: '500',
+  },
+  seasonTabTextActive: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  episodesContainer: {
+    marginTop: 16,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  episodeCard: {
+    backgroundColor: '#282828',
+    borderRadius: 8,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  episodeHeader: {
+    position: 'relative',
+  },
+  episodeImage: {
+    width: '100%',
+    height: width * 0.4,
+    backgroundColor: '#1a1a1a',
+  },
+  episodeOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderTopRightRadius: 8,
+  },
+  episodeNumber: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: width * 0.035,
+  },
+  episodeContent: {
+    padding: 12,
+  },
+  episodeContentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  episodeTitle: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: width * 0.04,
+    flex: 1,
+  },
+  episodeRatingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  episodeRating: {
+    color: '#fff',
+    marginLeft: 4,
+    fontSize: width * 0.035,
+  },
+  episodeMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  episodeMetaText: {
+    color: '#aaa',
+    fontSize: width * 0.03,
+  },
+  episodeOverview: {
+    color: '#ddd',
+    fontSize: width * 0.035,
+    lineHeight: 20,
+  },
+  noEpisodesText: {
     color: '#aaa',
     fontSize: width * 0.035,
     padding: 16,

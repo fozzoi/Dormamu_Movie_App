@@ -28,6 +28,31 @@ export interface TMDBResult {
   cast?: string[];
   castIds?: number[];
   character?: string; // Character played by the person in the movie/show
+  number_of_seasons?: number; // For TV shows only
+  seasons?: TMDBSeason[]; // For TV shows only
+}
+
+export interface TMDBSeason {
+  id: number;
+  name: string;
+  season_number: number;
+  episode_count: number;
+  poster_path: string | null;
+  overview: string;
+  air_date: string | null;
+  episodes?: TMDBEpisode[]; // Episodes will be loaded on demand
+}
+
+export interface TMDBEpisode {
+  id: number;
+  name: string;
+  episode_number: number;
+  season_number: number;
+  overview: string;
+  still_path: string | null;
+  air_date: string | null;
+  vote_average: number;
+  runtime: number | null;
 }
 
 export interface TMDBPerson {
@@ -107,6 +132,28 @@ export const getSimilarMedia = async (id: number, mediaType: "movie" | "tv", pag
   }
 };
 
+// NEW: Get TV show seasons
+export const getTVShowSeasons = async (tvId: number): Promise<TMDBSeason[]> => {
+  try {
+    const data = await fetchWithCache(`/tv/${tvId}`);
+    return data.seasons || [];
+  } catch (error) {
+    console.error(`Error fetching TV show seasons for ID ${tvId}:`, error);
+    return [];
+  }
+};
+
+// NEW: Get TV show season episodes
+export const getSeasonEpisodes = async (tvId: number, seasonNumber: number): Promise<TMDBEpisode[]> => {
+  try {
+    const data = await fetchWithCache(`/tv/${tvId}/season/${seasonNumber}`);
+    return data.episodes || [];
+  } catch (error) {
+    console.error(`Error fetching season ${seasonNumber} episodes for TV ID ${tvId}:`, error);
+    return [];
+  }
+};
+
 // Optimized certification fetch - lazy loading
 const fetchCertification = async (id: number, mediaType: "movie" | "tv"): Promise<string | null> => {
   const endpoint = mediaType === "movie" 
@@ -152,16 +199,35 @@ const fetchCast = async (id: number, mediaType: "movie" | "tv") => {
   }
 };
 
+// Add this new function to fetch crew
+const fetchCrew = async (id: number, mediaType: "movie" | "tv") => {
+  try {
+    const data = await fetchWithCache(`/${mediaType}/${id}/credits`);
+    const director = data.crew?.find(member => member.job === "Director") || null;
+    return director ? {
+      id: director.id,
+      name: director.name,
+      profile_path: director.profile_path,
+      job: director.job
+    } : null;
+  } catch (error) {
+    console.error(`Error fetching crew for ${mediaType} with ID ${id}:`, error);
+    return null;
+  }
+};
+
 // Helper to format basic item data
 const formatBasicItemData = (item: any): Omit<TMDBResult, 'certification' | 'cast'> => ({
   id: item.id,
   title: item.title || item.name,
+  name: item.name,
   overview: item.overview || "No description available.",
   poster_path: item.poster_path,
   vote_average: parseFloat((item.vote_average || 0).toFixed(1)),
-  media_type: item.media_type || (item.title ? "movie" : "tv"),
-  release_date: item.release_date || null,
-  first_air_date: item.first_air_date || null,
+  media_type: item.media_type || (item.first_air_date ? "tv" : "movie"), // Better media type detection
+  release_date: item.release_date,
+  first_air_date: item.first_air_date,
+  number_of_seasons: item.number_of_seasons,
 });
 
 // Enhanced search function with lazy loading
@@ -179,10 +245,17 @@ export const searchTMDB = async (query: string, page: number = 1): Promise<TMDBR
 // Get full details for a single item (with cert and cast)
 export const getFullDetails = async (item: TMDBResult): Promise<TMDBResult> => {
   try {
-    const [certification, castData] = await Promise.all([
+    const [certification, castData, directorData] = await Promise.all([
       fetchCertification(item.id, item.media_type),
-      fetchCast(item.id, item.media_type)
+      fetchCast(item.id, item.media_type),
+      fetchCrew(item.id, item.media_type)
     ]);
+    
+    // Add seasons data if it's a TV show
+    let seasonsData = null;
+    if (item.media_type === "tv") {
+      seasonsData = await getTVShowSeasons(item.id);
+    }
     
     return {
       ...item,
@@ -190,7 +263,9 @@ export const getFullDetails = async (item: TMDBResult): Promise<TMDBResult> => {
       cast: castData?.map(c => c.name),
       castIds: castData?.map(c => c.id),
       cast_profiles: castData?.map(c => c.profile_path),
-      characters: castData?.map(c => c.character)
+      characters: castData?.map(c => c.character),
+      director: directorData,
+      seasons: seasonsData || []
     };
   } catch (error) {
     console.error("Error in getFullDetails:", error);
@@ -208,11 +283,11 @@ export const getImageUrl = (path: string | null, size: string = "w500"): string 
 export const getMediaDetails = async (id: number, mediaType: "movie" | "tv"): Promise<TMDBResult> => {
   try {
     const data = await fetchWithCache(`/${mediaType}/${id}`);
-    const item = formatBasicItemData(data);
+    const item = formatBasicItemData({...data, media_type: mediaType}); // Ensure media_type is set
     return await getFullDetails(item);
   } catch (error) {
     console.error(`Error fetching ${mediaType} details:`, error);
-    throw new Error(`Failed to fetch ${mediaType} details.`);
+    throw error;
   }
 };
 
@@ -371,12 +446,12 @@ export const searchGenres = async (query: string): Promise<{ id: number; name: s
   }
 };
 
-export const getMovieGenres = async (movieId: number): Promise<{ id: number; name: string }[]> => {
+export const getMovieGenres = async (id: number, mediaType: "movie" | "tv" = "movie"): Promise<{ id: number; name: string }[]> => {
   try {
-    const data = await fetchWithCache(`/movie/${movieId}`);
+    const data = await fetchWithCache(`/${mediaType}/${id}`);
     return data.genres || [];
   } catch (error) {
-    console.error("Error fetching movie genres:", error);
+    console.error(`Error fetching ${mediaType} genres:`, error);
     return [];
   }
 };

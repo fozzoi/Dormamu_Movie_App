@@ -235,40 +235,52 @@ const ExplorePage = () => {
       );
     }
 
+    // Add validation for empty results
+    if (!loading && tmdbResults.length === 0 && peopleResults.length === 0 && genreResults.length === 0) {
+      return (
+        <View style={styles.noResultsContainer}>
+          <Text style={styles.noResultsText}>No results found</Text>
+          <Text style={styles.noResultsSubText}>Try different keywords</Text>
+        </View>
+      );
+    }
+
+    const sections = [
+      {
+        type: 'heading',
+        title: 'People',
+        show: peopleResults.length > 0
+      },
+      {
+        type: 'people',
+        data: peopleResults.slice(0, 5),
+        show: peopleResults.length > 0
+      },
+      {
+        type: 'heading',
+        title: 'Genres',
+        show: genreResults.length > 0
+      },
+      {
+        type: 'genres',
+        data: genreResults,
+        show: genreResults.length > 0
+      },
+      {
+        type: 'heading',
+        title: `Results for "${query}" (${tmdbResults.length})`,
+        show: tmdbResults.length > 0
+      },
+      {
+        type: 'results',
+        data: tmdbResults.slice(0, 6),
+        show: tmdbResults.length > 0
+      }
+    ].filter(item => item.show);
+
     return (
       <FlashList
-        data={[
-          {
-            type: 'heading',
-            title: 'People',
-            show: peopleResults.length > 0
-          },
-          {
-            type: 'people',
-            data: peopleResults.slice(0, 5),
-            show: peopleResults.length > 0
-          },
-          {
-            type: 'heading',
-            title: 'Genres',
-            show: genreResults.length > 0
-          },
-          {
-            type: 'genres',
-            data: genreResults,
-            show: genreResults.length > 0
-          },
-          {
-            type: 'heading',
-            title: `Results for "${query}" (${tmdbResults.length})`,
-            show: tmdbResults.length > 0
-          },
-          {
-            type: 'results',
-            data: tmdbResults.slice(0, 6),
-            show: tmdbResults.length > 0
-          }
-        ].filter(item => item.show)}
+        data={sections}
         renderItem={({ item }) => {
           switch (item.type) {
             case 'heading':
@@ -276,7 +288,7 @@ const ExplorePage = () => {
                 <Text style={styles.searchHeading}>{item.title}</Text>
               );
             case 'people':
-              return (
+              return item.data?.length > 0 ? (
                 <FlashList
                   horizontal
                   data={item.data}
@@ -297,10 +309,11 @@ const ExplorePage = () => {
                   estimatedItemSize={100}
                   showsHorizontalScrollIndicator={false}
                   keyExtractor={person => `person-${person.id}`}
+                  ListEmptyComponent={null}
                 />
-              );
+              ) : null;
             case 'genres':
-              return (
+              return item.data?.length > 0 ? (
                 <FlashList
                   horizontal
                   data={item.data}
@@ -318,22 +331,29 @@ const ExplorePage = () => {
                   estimatedItemSize={100}
                   showsHorizontalScrollIndicator={false}
                   keyExtractor={genre => `genre-${genre.id}`}
+                  ListEmptyComponent={null}
                 />
-              );
+              ) : null;
             case 'results':
-              return (
-                <FlashList
-                  data={item.data}
-                  renderItem={renderSearchItem}
-                  numColumns={3}
-                  estimatedItemSize={CARD_WIDTH * 1.5}
-                  keyExtractor={result => `search-${result.id}`}
-                />
-              );
+              return item.data?.length > 0 ? (
+                <View style={styles.searchResultsGrid}>
+                  <FlashList
+                    data={item.data}
+                    renderItem={renderSearchItem}
+                    numColumns={3}
+                    estimatedItemSize={CARD_WIDTH * 1.5}
+                    keyExtractor={result => `search-${result.id}`}
+                    ListEmptyComponent={null}
+                  />
+                </View>
+              ) : null;
+            default:
+              return null;
           }
         }}
         estimatedItemSize={150}
         keyExtractor={(item, index) => `section-${index}`}
+        ListEmptyComponent={null}
       />
     );
   };
@@ -456,6 +476,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#141414',
     paddingTop: 20,
+    // paddingBottom: 60, // Changed from -20 to 60 to lift content above nav bar
   },
   scrollContent: {
     paddingBottom: 20,
@@ -499,8 +520,9 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   sectionContainer: {
-    marginTop: 20,
+    marginTop: 10,
     paddingLeft: 10,
+    paddingBottom: 10,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -624,7 +646,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   searchResultsGrid: {
-    paddingBottom: 15,
+    flex: 1,
+    paddingHorizontal: 8,
+    paddingBottom: 16
   },
   searchItem: {
     marginRight: 8,
@@ -652,19 +676,16 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 20
   },
   noResultsText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    marginTop: 16,
-    textAlign: 'center',
+    fontSize: 18,
+    marginBottom: 8
   },
   noResultsSubText: {
     color: '#8C8C8C',
-    fontSize: 14,
-    marginTop: 8,
-    textAlign: 'center',
+    fontSize: 14
   },
   personItem: {
     width: 100,

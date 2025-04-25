@@ -9,14 +9,15 @@ import {
   TouchableOpacity,
   ScrollView
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { fetchMoreContentByType, getImageUrl, getMediaDetails, getSimilarMedia } from '../src/tmdb';
 
 const { width, height } = Dimensions.get('window');
 
 const ListDetails = ({ route, navigation }) => {
-  const { contentType = 'trending', movies: initialMovies, title } = route.params || {};
+  const { contentType = 'trending', movies: initialMovies, title, initialSelectedMovie } = route.params || {};
+  const insets = useSafeAreaInsets();
   
   const [movies, setMovies] = useState(initialMovies || []);
   const [selectedMovie, setSelectedMovie] = useState(null);
@@ -27,11 +28,15 @@ const ListDetails = ({ route, navigation }) => {
   useEffect(() => {
     if (!initialMovies) {
       loadMovies();
-    } else if (movies.length > 0) {
-      // Always select and load details for the first movie
-      handleMoviePress(movies[0]);
+    } else {
+      // If there's a specified initial movie, select it
+      if (initialSelectedMovie) {
+        handleMoviePress(initialSelectedMovie);
+      } else if (movies.length > 0) {
+        handleMoviePress(movies[0]);
+      }
     }
-  }, [movies]); // Changed dependency to movies array
+  }, [initialSelectedMovie]); // Add initialSelectedMovie to dependencies
 
   const loadMovies = async () => {
     setIsLoading(true);
@@ -63,7 +68,11 @@ const ListDetails = ({ route, navigation }) => {
     try {
       const details = await getMediaDetails(movie.id, movie.media_type);
       setSelectedMovie(details);
-      fetchSimilarMovies(movie.id, movie.media_type);
+      if (details) {
+        // Fetch similar movies when a movie is selected
+        const similarMedia = await getSimilarMedia(details.id, details.media_type);
+        setSimilarMovies(similarMedia);
+      }
     } catch (error) {
       console.error('Failed to fetch movie details:', error);
     } finally {
@@ -184,8 +193,7 @@ const ListDetails = ({ route, navigation }) => {
           <TouchableOpacity onPress={() => navigation.push('ListDetails', { 
             movies: similarMovies,
             contentType: 'similar',
-            title: `Similar to ${selectedMovie.title || selectedMovie.name}`,
-            initialSelectedMovie: selectedMovie // Pass the current movie as initial selection
+            title: `Similar to ${selectedMovie?.title || selectedMovie?.name}`
           })}>
             <Text style={styles.viewAll}>View All</Text>
           </TouchableOpacity>
@@ -203,7 +211,12 @@ const ListDetails = ({ route, navigation }) => {
           renderItem={({ item }) => (
             <TouchableOpacity 
               style={styles.similarItem}
-              onPress={() => navigation.push('Detail', { movie: item })}
+              onPress={() => navigation.push('ListDetails', { 
+                movies: similarMovies,
+                contentType: 'similar',
+                title: `Similar to ${selectedMovie?.title || selectedMovie?.name}`,
+                initialSelectedMovie: item
+              })}
             >
               <Image
                 source={{ uri: getImageUrl(item.poster_path, 'w342') }}
@@ -225,32 +238,50 @@ const ListDetails = ({ route, navigation }) => {
     </View>
   );
 
+  // Update scrollTo behavior when a movie is selected
+  useEffect(() => {
+    if (selectedMovie) {
+      const selectedIndex = movies.findIndex(m => m.id === selectedMovie.id);
+      if (selectedIndex !== -1 && listRef.current) {
+        listRef.current.scrollToIndex({
+          index: selectedIndex,
+          animated: true,
+          viewPosition: 0.5
+        });
+      }
+    }
+  }, [selectedMovie]);
+
+  const listRef = React.useRef(null);
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      {/* Movie List Section - Top */}
-      <View style={styles.listContainer}>
-        <Text style={styles.listTitle}>
-          {title || (contentType === 'trending' ? 'Trending Movies' : 
-           contentType === 'tv' ? 'Trending TV Shows' : 
-           contentType === 'top' ? 'Top Rated' : 'Movies')}
-        </Text>
-        
-        <FlatList
-          horizontal
-          data={movies}
-          renderItem={renderMovieCard}
-          keyExtractor={(item) => `movie-${item.id}`}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
-        />
-      </View>
-      
-      {/* Movie Details Section - Bottom */}
-      {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading...</Text>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <View style={styles.container}>
+        <View style={[styles.listSection, { paddingTop: insets.top }]}>
+          <Text style={styles.listTitle}>{title}</Text>
+          <View style={styles.listWrapper}>
+            <FlatList
+              ref={listRef}
+              horizontal
+              data={movies}
+              renderItem={renderMovieCard}
+              keyExtractor={(item) => `movie-${item.id}`}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.listContent}
+              onScrollToIndexFailed={() => {}}
+            />
+          </View>
         </View>
-      ) : renderMovieDetails()}
+        
+        {/* Details Section */}
+        <View style={styles.detailsSection}>
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Loading...</Text>
+            </View>
+          ) : renderMovieDetails()}
+        </View>
+      </View>
     </SafeAreaView>
   );
 };
@@ -260,11 +291,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#141414',
   },
-  listContainer: {
-    paddingVertical: 12,
-    paddingLeft: 16,
+  container: {
+    flex: 1,
+  },
+  listSection: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#2a2a2a',
+    backgroundColor: '#141414',
+  },
+  listWrapper: {
+    height: width * 0.65,
   },
   listTitle: {
     fontSize: 18,
@@ -274,6 +312,9 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingRight: 16,
+  },
+  detailsSection: {
+    flex: 1,
   },
   movieCard: {
     width: width * 0.28,
