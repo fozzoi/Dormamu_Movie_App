@@ -601,6 +601,7 @@ export default function Index() {
                   mode="text"
                   onPress={() => setShowMore(!showMore)}
                   style={styles.showMoreButton}
+                  labelStyle={{ color: 'white' }} // <-- Add this line
                 >
                   {showMore ? "Show Less" : "Show More"}
                 </Button>

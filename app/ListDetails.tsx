@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -7,10 +7,13 @@ import {
   FlatList, 
   Image, 
   TouchableOpacity,
-  ScrollView
+  ScrollView,
+  ActivityIndicator,
+  Linking
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchMoreContentByType, getImageUrl, getMediaDetails, getSimilarMedia } from '../src/tmdb';
 
 const { width, height } = Dimensions.get('window');
@@ -24,6 +27,12 @@ const ListDetails = ({ route, navigation }) => {
   const [isLoading, setIsLoading] = useState(!initialMovies);
   const [similarMovies, setSimilarMovies] = useState([]);
   const [isSimilarLoading, setIsSimilarLoading] = useState(false);
+  const [isInWatchlist, setIsInWatchlist] = useState(false);
+  const [selectedSeason, setSelectedSeason] = useState(null);
+  const [episodes, setEpisodes] = useState([]);
+  const [loadingEpisodes, setLoadingEpisodes] = useState(false);
+  
+  const mainScrollViewRef = useRef(null);
 
   useEffect(() => {
     if (!initialMovies) {
@@ -80,6 +89,62 @@ const ListDetails = ({ route, navigation }) => {
     }
   };
 
+  const checkIfInWatchlist = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('watchlist');
+      const list = stored ? JSON.parse(stored) : [];
+      setIsInWatchlist(list.some((item) => item.id === selectedMovie?.id));
+    } catch (error) {
+      console.error('Failed to check watchlist:', error);
+    }
+  };
+
+  const toggleWatchlist = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('watchlist');
+      const list = stored ? JSON.parse(stored) : [];
+      const exists = list.some((item) => item.id === selectedMovie.id);
+
+      if (exists) {
+        const updatedList = list.filter((item) => item.id !== selectedMovie.id);
+        await AsyncStorage.setItem('watchlist', JSON.stringify(updatedList));
+        setIsInWatchlist(false);
+      } else {
+        const updatedList = [...list, selectedMovie];
+        await AsyncStorage.setItem('watchlist', JSON.stringify(updatedList));
+        setIsInWatchlist(true);
+      }
+    } catch (error) {
+      console.error('Failed to update watchlist:', error);
+    }
+  };
+
+  const openTelegramSearch = () => {
+    const title = selectedMovie.title || selectedMovie.name;
+    const date = selectedMovie.release_date || selectedMovie.first_air_date;
+    const year = date ? date.substring(0, 4) : '';
+    const message = encodeURIComponent(`${title} ${year}`);
+    
+    const telegramLink = `tg://msg?text=${message}`;
+    Linking.openURL(telegramLink).catch(err => {
+      const webLink = `https://t.me/share/url?text=${message}`;
+      Linking.openURL(webLink);
+    });
+  };
+
+  const handleSeasonSelect = async (seasonNumber) => {
+    setSelectedSeason(seasonNumber);
+    setLoadingEpisodes(true);
+    try {
+      const seasonEpisodes = await getSeasonEpisodes(selectedMovie.id, seasonNumber);
+      setEpisodes(seasonEpisodes);
+    } catch (error) {
+      console.error('Failed to fetch episodes:', error);
+    } finally {
+      setLoadingEpisodes(false);
+    }
+  };
+
   // Render a movie card in the horizontal list
   const renderMovieCard = ({ item }) => (
     <TouchableOpacity 
@@ -108,7 +173,7 @@ const ListDetails = ({ route, navigation }) => {
     if (!selectedMovie) return null;
     
     return (
-      <ScrollView style={styles.detailsContainer}>
+      <View style={styles.detailsContainer}>
         {/* Movie Header */}
         <View style={styles.headerContainer}>
           <Image
@@ -135,7 +200,40 @@ const ListDetails = ({ route, navigation }) => {
                 {selectedMovie.media_type === 'movie' ? 'Movie' : 'TV Show'}
               </Text>
             </View>
+            
           </View>
+        </View>
+      <View style={styles.contentRow}>
+            <View style={styles.actionButtons}>
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={openTelegramSearch}
+              >
+                <Text style={styles.actionButtonText}>Search on Telegram</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => navigation.navigate('Main', {
+                  screen: 'Search',
+                  params: {
+                    prefillQuery: `${selectedMovie.title || selectedMovie.name}${(selectedMovie.release_date || selectedMovie.first_air_date) && ' ' + (selectedMovie.release_date || selectedMovie.first_air_date).slice(0, 4)}`
+                  },
+                })}
+              >
+                <Text style={styles.actionButtonText}>Search on Torrent</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity 
+              style={styles.watchlistButton}
+              onPress={toggleWatchlist}>
+            <View style={styles.circleButton}>
+              <MaterialIcons 
+                name={isInWatchlist ? "bookmark" : "bookmark-outline"} 
+                size={24} 
+                color="#fff" 
+              />
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* Overview Section */}
@@ -175,13 +273,70 @@ const ListDetails = ({ route, navigation }) => {
                 </TouchableOpacity>
               )}
               showsHorizontalScrollIndicator={false}
+              nestedScrollEnabled={true}
             />
+          </View>
+        )}
+
+        {/* Add Seasons Section for TV Shows */}
+        {selectedMovie.media_type === 'tv' && selectedMovie.seasons && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Seasons</Text>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              style={styles.seasonTabsContainer}
+              nestedScrollEnabled={true}
+            >
+              {selectedMovie.seasons.map((season) => (
+                <TouchableOpacity
+                  key={`season-${season.id}`}
+                  style={[
+                    styles.seasonTab,
+                    selectedSeason === season.season_number && styles.seasonTabActive
+                  ]}
+                  onPress={() => handleSeasonSelect(season.season_number)}
+                >
+                  <Text style={styles.seasonTabText}>{season.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {/* Episodes Section */}
+            {selectedSeason && (
+              <View style={styles.episodesContainer}>
+                {loadingEpisodes ? (
+                  <ActivityIndicator size="large" color="#E50914" />
+                ) : (
+                  episodes.map((episode) => (
+                    <View key={`episode-${episode.id}`} style={styles.episodeCard}>
+                      <Image 
+                        source={{ 
+                          uri: episode.still_path 
+                            ? getImageUrl(episode.still_path, 'w300')
+                            : 'https://via.placeholder.com/300x169?text=No+Image'
+                        }}
+                        style={styles.episodeImage}
+                      />
+                      <View style={styles.episodeContent}>
+                        <Text style={styles.episodeTitle}>
+                          {episode.episode_number}. {episode.name}
+                        </Text>
+                        <Text style={styles.episodeOverview} numberOfLines={2}>
+                          {episode.overview || 'No description available.'}
+                        </Text>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
           </View>
         )}
 
         {/* Similar Movies Section */}
         {renderSimilarMoviesSection()}
-      </ScrollView>
+      </View>
     );
   };
 
@@ -231,6 +386,7 @@ const ListDetails = ({ route, navigation }) => {
               </View>
             </TouchableOpacity>
           )}
+          nestedScrollEnabled={true}
         />
       ) : (
         <Text style={styles.noSimilarText}>No similar titles found</Text>
@@ -238,50 +394,41 @@ const ListDetails = ({ route, navigation }) => {
     </View>
   );
 
-  // Update scrollTo behavior when a movie is selected
-  useEffect(() => {
-    if (selectedMovie) {
-      const selectedIndex = movies.findIndex(m => m.id === selectedMovie.id);
-      if (selectedIndex !== -1 && listRef.current) {
-        listRef.current.scrollToIndex({
-          index: selectedIndex,
-          animated: true,
-          viewPosition: 0.5
-        });
-      }
-    }
-  }, [selectedMovie]);
-
-  const listRef = React.useRef(null);
-
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <View style={styles.container}>
-        <View style={[styles.listSection, { paddingTop: insets.top }]}>
+      <ScrollView 
+        ref={mainScrollViewRef}
+        style={styles.container}
+        contentContainerStyle={{ paddingBottom: 20 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Title Header */}
+        <View style={[styles.titleHeader, { paddingTop: insets.top + 8 }]}>
           <Text style={styles.listTitle}>{title}</Text>
-          <View style={styles.listWrapper}>
-            <FlatList
-              ref={listRef}
-              horizontal
-              data={movies}
-              renderItem={renderMovieCard}
-              keyExtractor={(item) => `movie-${item.id}`}
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.listContent}
-              onScrollToIndexFailed={() => {}}
-            />
-          </View>
+        </View>
+
+        {/* Movie List Section - Now inside the ScrollView */}
+        <View style={styles.listSection}>
+          <FlatList
+            horizontal
+            data={movies}
+            renderItem={renderMovieCard}
+            keyExtractor={(item) => `movie-${item.id}`}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.listContent}
+            onScrollToIndexFailed={() => {}}
+            nestedScrollEnabled={true}
+          />
         </View>
         
-        {/* Details Section */}
-        <View style={styles.detailsSection}>
-          {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Loading...</Text>
-            </View>
-          ) : renderMovieDetails()}
-        </View>
-      </View>
+        {/* Loading or Details Section */}
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#E50914" />
+            <Text style={styles.loadingText}>Loading...</Text>
+          </View>
+        ) : renderMovieDetails()}
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -294,14 +441,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  titleHeader: {
+    paddingHorizontal: 16,
+    paddingBottom: 4,
+    backgroundColor: '#141414',
+  },
   listSection: {
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#2a2a2a',
     backgroundColor: '#141414',
-  },
-  listWrapper: {
     height: width * 0.65,
   },
   listTitle: {
@@ -312,9 +462,6 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingRight: 16,
-  },
-  detailsSection: {
-    flex: 1,
   },
   movieCard: {
     width: width * 0.28,
@@ -350,16 +497,17 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   loadingContainer: {
-    flex: 1,
+    height: 300,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 16,
   },
   loadingText: {
     color: '#aaa',
     fontSize: 16,
+    marginTop: 12,
   },
   detailsContainer: {
-    flex: 1,
     padding: 16,
   },
   headerContainer: {
@@ -414,6 +562,12 @@ const styles = StyleSheet.create({
   mediaType: {
     fontSize: 14,
     color: '#fff',
+  },
+  contentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 16,
   },
   section: {
     marginBottom: 20,
@@ -481,6 +635,83 @@ const styles = StyleSheet.create({
     color: '#E50914',
     fontWeight: '600',
     fontSize: width * 0.035,
+  },
+  actionButtons: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginRight: 16,
+  },
+  actionButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#fff',
+    padding: 10,
+    borderRadius: 8,
+    width: '48%',
+    alignItems: 'center',
+  },
+  actionButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  watchlistButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  circleButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E50914',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  seasonTabsContainer: {
+    marginVertical: 8,
+  },
+  seasonTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginRight: 8,
+    borderRadius: 20,
+    backgroundColor: '#282828',
+  },
+  seasonTabActive: {
+    backgroundColor: '#E50914',
+  },
+  seasonTabText: {
+    color: '#fff',
+    fontSize: 14,
+  },
+  episodesContainer: {
+    marginTop: 16,
+  },
+  episodeCard: {
+    flexDirection: 'row',
+    backgroundColor: '#282828',
+    borderRadius: 8,
+    marginBottom: 8,
+    overflow: 'hidden',
+  },
+  episodeImage: {
+    width: 120,
+    height: 68,
+    backgroundColor: '#1a1a1a',
+  },
+  episodeContent: {
+    flex: 1,
+    padding: 8,
+  },
+  episodeTitle: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  episodeOverview: {
+    color: '#aaa',
+    fontSize: 12,
   },
 });
 
