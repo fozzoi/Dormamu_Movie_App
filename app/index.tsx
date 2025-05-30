@@ -381,6 +381,7 @@ export default function Index() {
           size: torrent.size || "Unknown",
           source: "YTS",
           url: torrent.url || "",
+          date_uploaded: movie.date_uploaded || movie.date_uploaded_unix // <-- Add this line
         }))
       );
     } catch (error) {
@@ -396,14 +397,15 @@ export default function Index() {
       return response.data.map((item: any) => {
         const sizeInMB = parseInt(item.size) / (1024 * 1024);
         const size = sizeInMB >= 1024 
-          ? `${(sizeInMB / 1024).toFixed(2)} GB` // Convert to GB if >= 1024 MB
-          : `${sizeInMB.toFixed(2)} MB`; // Keep in MB otherwise
+          ? `${(sizeInMB / 1024).toFixed(2)} GB`
+          : `${sizeInMB.toFixed(2)} MB`;
         return {
           id: item.id,
           name: item.name,
           size,
           source: "The Pirate Bay",
           url: `magnet:?xt=urn:btih:${item.info_hash}&dn=${encodeURIComponent(item.name)}`,
+          added: item.added // <-- Add this line
         };
       });
     } catch (error) {
@@ -525,6 +527,18 @@ export default function Index() {
       const audioLanguages = extractAudioLanguages(item.name); // Extract audio languages
       const languageDisplay = audioLanguages.length > 1 ? "Multi" : audioLanguages[0];
 
+      // Get date if available (for YTS, not Pirate Bay)
+      let dateString = "";
+      if (item.date_uploaded) {
+        // YTS API returns ISO string
+        const date = new Date(item.date_uploaded);
+        dateString = `Posted: ${date.toLocaleDateString()}`;
+      } else if (item.added) {
+        // Pirate Bay API returns unix timestamp (seconds)
+        const date = new Date(Number(item.added) * 1000);
+        dateString = `Posted: ${date.toLocaleDateString()}`;
+      }
+
       return (
         <Card key={item.id.toString()} style={styles.card}>
           <Card.Title
@@ -545,12 +559,13 @@ export default function Index() {
             </View>
             <View style={styles.contentRow}>
               <Text style={{ color: 'white' }}>Audio: {languageDisplay}</Text>
+              {dateString ? (
+                <Text style={{ color: '#aaa', marginLeft: 12 }}>{dateString}</Text>
+              ) : null}
             </View>
-            {/* <Card.Actions> */}
-              <Button style={(styles.button)} mode="outlined" onPress={() => handleDownload(item.url, item.name)}>
-                <Text style={styles.btntxt}> Download</Text>
-              </Button>
-            {/* </Card.Actions> */}
+            <Button style={styles.button} mode="outlined" onPress={() => handleDownload(item.url, item.name)}>
+              <Text style={styles.btntxt}> Download</Text>
+            </Button>
           </Card.Content>
         </Card>
       );

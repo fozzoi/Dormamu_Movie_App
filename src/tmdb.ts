@@ -352,21 +352,132 @@ export const getRegionalMovies = async (region: string = 'IN', page: number = 1)
   }
 };
 
+// Add new regional movie functions
+export const getLanguageMovies = async (language: string, page: number = 1): Promise<TMDBResult[]> => {
+  try {
+    const data = await fetchWithCache("/discover/movie", {
+      with_original_language: language,
+      sort_by: "popularity.desc",
+      page
+    });
+    
+    return data.results.map((item: any) => ({
+      ...formatBasicItemData(item),
+      media_type: "movie"
+    }));
+  } catch (error) {
+    console.error(`Error fetching ${language} movies:`, error);
+    return [];
+  }
+};
+
+// Add new function for language-specific TV shows
+export const getLanguageTV = async (language: string, page: number = 1): Promise<TMDBResult[]> => {
+  try {
+    const data = await fetchWithCache("/discover/tv", {
+      with_original_language: language,
+      sort_by: "popularity.desc",
+      page
+    });
+    
+    return data.results.map((item: any) => ({
+      ...formatBasicItemData(item),
+      media_type: "tv"
+    }));
+  } catch (error) {
+    console.error(`Error fetching ${language} TV shows:`, error);
+    return [];
+  }
+};
+
+// Add anime and animation genre IDs
+const ANIME_GENRE_ID = 16;      // Animation genre ID in TMDB
+const ANIME_KEYWORD_ID = 210024; // Anime keyword ID in TMDB
+
+// Add anime/animation content discovery function
+export const getAnimeContent = async (page: number = 1, isMovie: boolean = true): Promise<TMDBResult[]> => {
+  try {
+    const mediaType = isMovie ? 'movie' : 'tv';
+    const data = await fetchWithCache(`/discover/${mediaType}`, {
+      with_genres: ANIME_GENRE_ID,
+      with_keywords: ANIME_KEYWORD_ID,
+      with_original_language: 'ja',
+      sort_by: 'popularity.desc',
+      page
+    });
+    
+    return data.results.map((item: any) => ({
+      ...formatBasicItemData(item),
+      media_type: isMovie ? 'movie' : 'tv'
+    }));
+  } catch (error) {
+    console.error('Error fetching anime content:', error);
+    return [];
+  }
+};
+
 // Parallel fetch all discovery content at once for initial page load
 export const fetchAllDiscoveryContent = async () => {
   try {
-    const [trending, trendingTV, topRated, regional] = await Promise.all([
+    const [
+      trending,
+      trendingTV, 
+      topRated,
+      regional,
+      hindiMovies,
+      malayalamMovies,
+      tamilMovies,
+      hindiTV,
+      malayalamTV,
+      koreanMovies,
+      koreanTV,
+      japaneseMovies,
+      japaneseTV,
+      animeMovies,
+      animeShows,
+      animatedMovies
+    ] = await Promise.all([
       getTrendingMovies(),
       getTrendingTV(),
       getTopRated(),
-      getRegionalMovies('IN')
+      getRegionalMovies('IN'),
+      getLanguageMovies('hi'), // Hindi
+      getLanguageMovies('ml'), // Malayalam
+      getLanguageMovies('ta'), // Tamil
+      getLanguageTV('hi'),     // Hindi TV shows
+      getLanguageTV('ml'),      // Malayalam TV shows
+      getLanguageMovies('ko'), // Korean
+      getLanguageTV('ko'),      // Korean TV shows
+      getLanguageMovies('ja'), // Japanese
+      getLanguageTV('ja'),      // Japanese TV shows
+      getAnimeContent(1, true),
+      getAnimeContent(1, false),
+      fetchWithCache('/discover/movie', { 
+        with_genres: ANIME_GENRE_ID,
+        sort_by: 'popularity.desc'
+      }).then(data => data.results.map((item: any) => ({
+        ...formatBasicItemData(item),
+        media_type: 'movie'
+      })))
     ]);
     
     return {
       trendingMovies: trending,
       trendingTV,
       topRated,
-      regional
+      regional,
+      hindiMovies,
+      malayalamMovies,
+      tamilMovies,
+      hindiTV,
+      malayalamTV,
+      koreanMovies,
+      koreanTV,
+      japaneseMovies,
+      japaneseTV,
+      animeMovies,
+      animeShows,
+      animatedMovies
     };
   } catch (error) {
     console.error("Error fetching discovery content:", error);

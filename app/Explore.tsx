@@ -153,6 +153,18 @@ const ExplorePage = () => {
   const [featuredContent, setFeaturedContent] = useState(null);
   const [peopleResults, setPeopleResults] = useState([]);
   const [genreResults, setGenreResults] = useState([]);
+  const [hindiMovies, setHindiMovies] = useState([]);
+  const [malayalamMovies, setMalayalamMovies] = useState([]);
+  const [tamilMovies, setTamilMovies] = useState([]);
+  const [hindiTV, setHindiTV] = useState([]);
+  const [malayalamTV, setMalayalamTV] = useState([]);
+  const [koreanMovies, setKoreanMovies] = useState([]);
+  const [koreanTV, setKoreanTV] = useState([]);
+  const [japaneseMovies, setJapaneseMovies] = useState([]);
+  const [japaneseTV, setJapaneseTV] = useState([]);
+  const [animeMovies, setAnimeMovies] = useState([]);
+  const [animeShows, setAnimeShows] = useState([]);
+  const [animatedMovies, setAnimatedMovies] = useState([]);
   const navigation = useNavigation();
 
   const handleSearch = useCallback(async () => {
@@ -366,6 +378,18 @@ const ExplorePage = () => {
       setTrendingTV(content.trendingTV);
       setTopRated(content.topRated);
       setRegional(content.regional);
+      setHindiMovies(content.hindiMovies);
+      setMalayalamMovies(content.malayalamMovies);
+      setTamilMovies(content.tamilMovies);
+      setHindiTV(content.hindiTV);
+      setMalayalamTV(content.malayalamTV);
+      setKoreanMovies(content.koreanMovies);
+      setKoreanTV(content.koreanTV);
+      setJapaneseMovies(content.japaneseMovies);
+      setJapaneseTV(content.japaneseTV);
+      setAnimeMovies(content.animeMovies);
+      setAnimeShows(content.animeShows);
+      setAnimatedMovies(content.animatedMovies);
       
       // Set featured content from trending movies or shows
       if (content.trendingMovies?.length > 0) {
@@ -446,7 +470,25 @@ const ExplorePage = () => {
             { type: 'section', title: 'Trending Movies', data: trendingMovies },
             { type: 'section', title: 'Trending TV Shows', data: trendingTV },
             { type: 'section', title: 'Top Rated', data: topRated },
-            { type: 'section', title: 'Popular in Your Region', data: regional }
+            { type: 'section', title: 'Popular in Your Region', data: regional },
+            // Hindi Content
+            { type: 'section', title: 'Hindi Movies', data: hindiMovies },
+            { type: 'section', title: 'Hindi Web Series', data: hindiTV },
+            // Malayalam Content
+            { type: 'section', title: 'Malayalam Movies', data: malayalamMovies },
+            { type: 'section', title: 'Malayalam Web Series', data: malayalamTV },
+            // Tamil Content
+            { type: 'section', title: 'Tamil Movies', data: tamilMovies },
+            // Korean Content
+            { type: 'section', title: 'Korean Movies', data: koreanMovies },
+            { type: 'section', title: 'Korean TV Shows', data: koreanTV },
+            // Japanese Content
+            { type: 'section', title: 'Japanese Movies', data: japaneseMovies },
+            { type: 'section', title: 'Japanese TV Shows', data: japaneseTV },
+            // Anime & Animation
+            { type: 'section', title: 'Anime Movies', data: animeMovies },
+            { type: 'section', title: 'Anime Series', data: animeShows },
+            { type: 'section', title: 'Animated Movies', data: animatedMovies },
           ]}
           renderItem={({ item }) => (
             <Section

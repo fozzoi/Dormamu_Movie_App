@@ -203,29 +203,30 @@ const ListDetails = ({ route, navigation }) => {
             
           </View>
         </View>
-      <View style={styles.contentRow}>
-            <View style={styles.actionButtons}>
-              <TouchableOpacity 
-                style={styles.actionButton}
-                onPress={openTelegramSearch}
-              >
-                <Text style={styles.actionButtonText}>Search on Telegram</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.actionButton}
-                onPress={() => navigation.navigate('Main', {
-                  screen: 'Search',
-                  params: {
-                    prefillQuery: `${selectedMovie.title || selectedMovie.name}${(selectedMovie.release_date || selectedMovie.first_air_date) && ' ' + (selectedMovie.release_date || selectedMovie.first_air_date).slice(0, 4)}`
-                  },
-                })}
-              >
-                <Text style={styles.actionButtonText}>Search on Torrent</Text>
-              </TouchableOpacity>
-            </View>
+        <View 
+          style={styles.contentRow}>
+          <View style={styles.actionButtons}>
             <TouchableOpacity 
-              style={styles.watchlistButton}
-              onPress={toggleWatchlist}>
+              style={styles.actionButton}
+              onPress={openTelegramSearch}
+            >
+              <Text style={styles.actionButtonText}>Search on Telegram</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={() => navigation.navigate('Main', {
+                screen: 'Search',
+                params: {
+                  prefillQuery: `${selectedMovie.title || selectedMovie.name}${(selectedMovie.release_date || selectedMovie.first_air_date) && ' ' + (selectedMovie.release_date || selectedMovie.first_air_date).slice(0, 4)}`
+                },
+              })}
+            >
+              <Text style={styles.actionButtonText}>Search on Torrent</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity 
+            style={styles.watchlistButton}
+            onPress={toggleWatchlist}>
             <View style={styles.circleButton}>
               <MaterialIcons 
                 name={isInWatchlist ? "bookmark" : "bookmark-outline"} 
@@ -235,6 +236,7 @@ const ListDetails = ({ route, navigation }) => {
             </View>
           </TouchableOpacity>
         </View>
+        
 
         {/* Overview Section */}
         <View style={styles.section}>
@@ -567,7 +569,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 16,
+    marginTop: 10,
+    marginBottom: 10,
+
   },
   section: {
     marginBottom: 20,
@@ -639,6 +643,7 @@ const styles = StyleSheet.create({
   actionButtons: {
     flex: 1,
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
     marginRight: 16,
   },
@@ -648,7 +653,7 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
     padding: 10,
     borderRadius: 8,
-    width: '48%',
+    width: '48%',  // Adjust to control button width
     alignItems: 'center',
   },
   actionButtonText: {
@@ -660,9 +665,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   circleButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: '#E50914',
     justifyContent: 'center',
     alignItems: 'center',
