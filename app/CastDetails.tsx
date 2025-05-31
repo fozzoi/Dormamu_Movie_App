@@ -217,6 +217,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#141414', // Netflix dark background
+    marginBlockEnd: 35,
   },
   contentContainer: {
     paddingBottom: 24,
@@ -230,7 +231,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     position: 'absolute',
-    top: 40,
+    top: 60,
     left: 16,
     zIndex: 10,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',

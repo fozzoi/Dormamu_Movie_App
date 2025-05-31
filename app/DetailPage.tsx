@@ -432,15 +432,16 @@ const DetailPage = () => {
                     <Text style={styles.telegramButtonText}>Search on Telegram</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
-                    style={styles.telegramButton}
-                    onPress={() => navigation.navigate('Main', {
-                      screen: 'Search',
-                      params: {
-                        prefillQuery: `${movie.title || movie.name}${(movie.release_date || movie.first_air_date) && ' ' + (movie.release_date || movie.first_air_date).slice(0, 4)}`
-                      },
-                    })}
-                  >
-                    <Text style={styles.telegramButtonText}>Search on Torrent</Text>
+                      style={styles.telegramButton}
+                      onPress={() => navigation.navigate('Search', {
+                        screen: 'SearchMain',
+                        params: {
+                          prefillQuery: `${movie.title || movie.name}${(movie.release_date 
+                            || movie.first_air_date) && ' ' + (movie.release_date ||
+                             movie.first_air_date).slice(0, 4)}`
+                        }
+                      })}>
+                    <Text style={styles.telegramButtonText}>Search on Torrents</Text>
                   </TouchableOpacity>
                 </View>
                 <TouchableOpacity 
@@ -550,13 +551,13 @@ const styles = StyleSheet.create({
   },
   gradientOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: 'rgba(0,0,0,0.55)',
     paddingTop: 40,
     justifyContent: 'space-between',
   },
   backButton: {
     position: 'absolute',
-    top: 40,
+    top: 70,
     left: 16,
     zIndex: 10,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -647,6 +648,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     padding: 16,
     backgroundColor: '#141414',
+    marginBottom: 24,
   },
   sectionContainer: {
     marginBottom: 24,

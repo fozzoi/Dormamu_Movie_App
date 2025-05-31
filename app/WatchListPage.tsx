@@ -15,7 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
-const CARD_WIDTH = width * 0.30; // Slightly smaller for better Netflix look
+const CARD_WIDTH = width * 0.3; // Slightly smaller for better Netflix look
 const FEATURED_HEIGHT = height * 0.65; // Height for featured content
 
 
@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
     padding: 10,
     backgroundColor: '#141414', // Netflix dark background
     paddingTop: 40,
-    paddingHorizontal: 16,
+    paddingHorizontal: 10,
 
   },
   headerContainer: {
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   cardWrapper: {
-    margin: 5,
+    margin: 3,
     marginBottom: 10,
     width: CARD_WIDTH,
   },
@@ -234,7 +234,7 @@ const styles = StyleSheet.create({
   },
   cardGradient: {
     position: 'absolute',
-    bottom: 0,
+    bottom: -1,
     left: 0,
     right: 0,
     height: 70,

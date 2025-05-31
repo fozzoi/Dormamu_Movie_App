@@ -1,21 +1,23 @@
 import React, { useState } from "react";
-import { View, StyleSheet, Alert, Linking, useColorScheme,StatusBar, ScrollView, Platform, TouchableOpacity } from "react-native";
-import { Provider as PaperProvider, TextInput, Button, Card, Text,ActivityIndicator, MD3DarkTheme, MD3LightTheme, Chip } from "react-native-paper";
+import { View, StyleSheet, Alert, Linking, useColorScheme, StatusBar, ScrollView, Platform, TouchableOpacity } from "react-native";
+import { Provider as PaperProvider, TextInput, Button, Card, Text, ActivityIndicator, MD3DarkTheme, MD3LightTheme, Chip } from "react-native-paper";
 import axios from "axios";
 import * as FileSystem from "expo-file-system";
 import * as IntentLauncher from "expo-intent-launcher"; // Android-specific file handling
 import ErrorBoundary from "./ErrorBoundary";
 import { useNavigation } from "expo-router";
-import { useRouter } from "expo-router";
+import { useRouter, Link } from 'expo-router';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { RouteProp, useRoute } from "@react-navigation/native";
 import { useEffect } from "react";
 import { Ionicons } from "@expo/vector-icons";
+import { torrentScraper } from '../src/Scraper';
+import HistoryPage from "./history";
 
 interface Movie {
   id: number;
   title: string;
-  torrents: { size: string; url: string; quality: string }[];
+  torrents: { size: string; url: string; quality: string; seeds?: number; peers?: number }[];
 }
 
 interface Result {
@@ -24,12 +26,16 @@ interface Result {
   size: string;
   source: string;
   url: string;
+  seeds?: number;
+  peers?: number;
   episodes?: {
     season: number;
     episode: number;
     url: string;
     quality: string;
     size: string;
+    seeds?: number;
+    peers?: number;
   }[];
   isSeries?: boolean;
 }
@@ -50,6 +56,8 @@ interface SeriesEpisode {
   url: string;
   quality: string;
   size: string;
+  seeds?: number;
+  peers?: number;
 }
 
 interface SeriesInfo {
@@ -109,7 +117,7 @@ export default function Index() {
         },
       };
 
-  const availableSources = ["YTS", "The Pirate Bay"];
+  const availableSources = ["YTS", "The Pirate Bay", "RARBG", "1337x", "NyaaSI"];
 
   const parseEpisodeInfo = (name: string) => {
     const seasonMatch = name.match(/S(\d{1,2})/i);
@@ -161,7 +169,9 @@ export default function Index() {
         episode: episodeInfo.episode,
         quality: quality.label,
         url: item.url,
-        size: item.size
+        size: item.size,
+        seeds: item.seeds,
+        peers: item.peers
       };
 
       // Track available qualities
@@ -319,29 +329,50 @@ export default function Index() {
     }
     setLoading(true);
     try {
-      await saveToHistory(query); // Save the query to history
-      // Fetch results from YTS
-      const ytsResults = await fetchYTSResults(query);
+      await saveToHistory(query);
       
-      // Fetch results from The Pirate Bay
-      const pirateBayResults = await fetchPirateBayResults(query);
+      // Run all searches in parallel
+      const [
+        ytsResults,
+        pirateBayResults,
+        scrapedResults // New scraper results
+      ] = await Promise.all([
+        fetchYTSResults(query),
+        fetchPirateBayResults(query),
+        torrentScraper.searchAll(query) // Add scraper search
+      ]);
       
-      // (Additional sources such as RARBG could be added here)
+      // Combine all results including scraped ones
+      const combinedResults = [
+        ...ytsResults, 
+        ...pirateBayResults,
+        ...scrapedResults  // Add scraped results
+      ];
       
-      // Combine and sort all results
-      const combinedResults = [...ytsResults, ...pirateBayResults];
+      // Remove duplicates based on magnet links or names
+      const uniqueResults = Array.from(new Map(
+        combinedResults.map(item => [
+          item.url.startsWith('magnet:') ? item.url : item.name,
+          item
+        ])
+      ).values());
       
-      // Sort by quality score and relevance
-      const sortedResults = combinedResults.sort((a, b) => {
+      // Sort by seeds and quality score
+      const sortedResults = uniqueResults.sort((a, b) => {
         const aQuality = getQualityScore(a.name);
         const bQuality = getQualityScore(b.name);
         
-        // First, compare quality scores
+        // First prioritize seeds if available
+        if (a.seeds && b.seeds && a.seeds !== b.seeds) {
+          return b.seeds - a.seeds; // Higher seeds first
+        }
+        
+        // Then compare quality scores
         if (aQuality.score !== bQuality.score) {
           return bQuality.score - aQuality.score;
         }
         
-        // If qualities are equal, check for exact name matches
+        // Check for exact name matches
         const queryLower = query.toLowerCase();
         const aExact = a.name.toLowerCase() === queryLower;
         const bExact = b.name.toLowerCase() === queryLower;
@@ -362,7 +393,13 @@ export default function Index() {
       setResults(sortedResults);
     } catch (error) {
       console.error("Error fetching data:", error);
-      Alert.alert("Error", "Failed to fetch search results.");
+      // If main sources fail, try scraper as fallback
+      try {
+        const fallbackResults = await torrentScraper.searchAll(query);
+        setResults(fallbackResults);
+      } catch (fallbackError) {
+        Alert.alert("Error", "Failed to fetch search results from all sources.");
+      }
     } finally {
       setLoading(false);
     }
@@ -373,18 +410,25 @@ export default function Index() {
       const response = await axios.get(
         `https://yts.mx/api/v2/list_movies.json?query_term=${encodeURIComponent(query)}&limit=50`
       );
+      
+      if (!response.data.data || !response.data.data.movies) {
+        return [];
+      }
+      
       const movies: Movie[] = response.data.data.movies || [];
       return movies.flatMap((movie: Movie) =>
-        movie.torrents.map((torrent: { size: string; url: string; quality: string }) => ({
+        movie.torrents.map((torrent: { size: string; url: string; quality: string; seeds?: number; peers?: number }) => ({
           id: `${movie.id}-${torrent.url}`,
           name: `${movie.title} [${torrent.quality}]`,
           size: torrent.size || "Unknown",
           source: "YTS",
           url: torrent.url || "",
-          date_uploaded: movie.date_uploaded || movie.date_uploaded_unix // <-- Add this line
+          seeds: torrent.seeds || 0,
+          peers: torrent.peers || 0
         }))
       );
     } catch (error) {
+      console.error("YTS Error:", error);
       return [];
     }
   };
@@ -394,6 +438,11 @@ export default function Index() {
       const response = await axios.get(
         `https://apibay.org/q.php?q=${encodeURIComponent(query)}&cat=0`
       );
+      
+      if (!response.data || !Array.isArray(response.data)) {
+        return [];
+      }
+      
       return response.data.map((item: any) => {
         const sizeInMB = parseInt(item.size) / (1024 * 1024);
         const size = sizeInMB >= 1024 
@@ -405,13 +454,27 @@ export default function Index() {
           size,
           source: "The Pirate Bay",
           url: `magnet:?xt=urn:btih:${item.info_hash}&dn=${encodeURIComponent(item.name)}`,
-          added: item.added // <-- Add this line
+          seeds: parseInt(item.seeders) || 0,
+          peers: parseInt(item.leechers) || 0
         };
       });
     } catch (error) {
       console.error("PirateBay Error:", error);
       return [];
     }
+  };
+
+  const formatFileSize = (bytes: number | string): string => {
+    if (typeof bytes === 'string') {
+      bytes = parseInt(bytes);
+    }
+    
+    if (isNaN(bytes) || bytes === 0) return "Unknown";
+    
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    
+    return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   const handleDownload = async (url: string, name: string) => {
@@ -430,24 +493,31 @@ export default function Index() {
           Alert.alert("Error", "No app available to handle magnet links.");
         }
       } else {
-        // Handle direct file URLs
-        const filePath = `${FileSystem.documentDirectory}${name}.torrent`;
-        const { uri } = await FileSystem.downloadAsync(url, filePath);
+        // For direct .torrent file URLs (like YTS), try opening directly first
+        const supported = await Linking.canOpenURL(url);
+        if (supported) {
+          // Try to open the URL directly in a torrent client
+          await Linking.openURL(url);
+        } else {
+          // Fallback to downloading and then opening
+          const filePath = `${FileSystem.documentDirectory}${name}.torrent`;
+          const { uri } = await FileSystem.downloadAsync(url, filePath);
 
-        if (Platform.OS === "android") {
-          const action = "android.intent.action.VIEW";
-          const params = {
-            data: uri,
-            flags: 1,
-            type: "application/x-bittorrent",
-          };
-          await IntentLauncher.startActivityAsync(action, params);
-        } else if (Platform.OS === "ios") {
-          const supported = await Linking.canOpenURL(uri);
-          if (supported) {
-            await Linking.openURL(uri);
-          } else {
-            Alert.alert("Error", "No app available to handle this file.");
+          if (Platform.OS === "android") {
+            const action = "android.intent.action.VIEW";
+            const params = {
+              data: uri,
+              flags: 1,
+              type: "application/x-bittorrent",
+            };
+            await IntentLauncher.startActivityAsync(action, params);
+          } else if (Platform.OS === "ios") {
+            const supported = await Linking.canOpenURL(uri);
+            if (supported) {
+              await Linking.openURL(uri);
+            } else {
+              Alert.alert("Error", "No app available to handle this file.");
+            }
           }
         }
       }
@@ -527,17 +597,16 @@ export default function Index() {
       const audioLanguages = extractAudioLanguages(item.name); // Extract audio languages
       const languageDisplay = audioLanguages.length > 1 ? "Multi" : audioLanguages[0];
 
-      // Get date if available (for YTS, not Pirate Bay)
-      let dateString = "";
-      if (item.date_uploaded) {
-        // YTS API returns ISO string
-        const date = new Date(item.date_uploaded);
-        dateString = `Posted: ${date.toLocaleDateString()}`;
-      } else if (item.added) {
-        // Pirate Bay API returns unix timestamp (seconds)
-        const date = new Date(Number(item.added) * 1000);
-        dateString = `Posted: ${date.toLocaleDateString()}`;
-      }
+      // Display seeders and peers instead of date
+      const seedPeerDisplay = `${item.seeds || 0} seeders, ${item.peers || 0} peers`;
+      
+      // Use seeders count to calculate health color
+      const seedsCount = item.seeds || 0;
+      let healthColor = '#ff0000'; // Default red for no seeders
+      
+      if (seedsCount > 50) healthColor = '#00ff00'; // Green for lots of seeders
+      else if (seedsCount > 10) healthColor = '#ffff00'; // Yellow for moderate seeders
+      else if (seedsCount > 0) healthColor = '#ff8000'; // Orange for few seeders
 
       return (
         <Card key={item.id.toString()} style={styles.card}>
@@ -559,9 +628,7 @@ export default function Index() {
             </View>
             <View style={styles.contentRow}>
               <Text style={{ color: 'white' }}>Audio: {languageDisplay}</Text>
-              {dateString ? (
-                <Text style={{ color: '#aaa', marginLeft: 12 }}>{dateString}</Text>
-              ) : null}
+              <Text style={{ color: healthColor, fontWeight: 'bold' }}>{seedPeerDisplay}</Text>
             </View>
             <Button style={styles.button} mode="outlined" onPress={() => handleDownload(item.url, item.name)}>
               <Text style={styles.btntxt}> Download</Text>
@@ -578,6 +645,15 @@ export default function Index() {
         barStyle={colorScheme === "dark" ? "light-content" : "dark-content"}
         backgroundColor={theme.colors.background}
       />
+      
+      {/* Add History Icon */}
+      <TouchableOpacity
+        style={styles.historyButton}
+        onPress={() => navigation.navigate("history")}
+      >
+        <Ionicons name="time-outline" size={30} color="#fff" />
+      </TouchableOpacity>
+
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.container}>
           <Text style={styles.heading}>Torrent Search</Text>
@@ -606,22 +682,46 @@ export default function Index() {
               <Ionicons name="close-circle" size={24} color="gray" />
             </TouchableOpacity>
           </View>
-          {loading ? (
-            <ActivityIndicator animating={true} size="large" />
-          ) : (
-            <>
-              {renderResults()}
-              {results.length > 5 && (
-                <Button
-                  mode="text"
-                  onPress={() => setShowMore(!showMore)}
-                  style={styles.showMoreButton}
-                  labelStyle={{ color: 'white' }} // <-- Add this line
-                >
-                  {showMore ? "Show Less" : "Show More"}
-                </Button>
-              )}
-            </>
+
+          {/* Filter by source chips */}
+          {results.length > 0 && (
+            <View style={styles.filterContainer}>
+              {/* <Text style={styles.filterTitle}>Filter by Source:</Text> */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.sourceChipScroll}>
+                {availableSources.map(source => (
+                  <Chip
+                    key={source}
+                    selected={filters.source.includes(source)}
+                    onPress={() => {
+                      setFilters(prev => {
+                        const newSources = prev.source.includes(source)
+                          ? prev.source.filter(s => s !== source)
+                          : [...prev.source, source];
+                        return { ...prev, source: newSources };
+                      });
+                    }}
+                    style={styles.sourceChip}
+                    selectedColor="#fff"
+                    textStyle={{ color: filters.source.includes(source) ? '#fff' : '#ccc' }}
+                  >
+                    {source}
+                  </Chip>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+          {/* End filter by source chips */}
+
+          {renderResults()}
+          {results.length > 5 && (
+            <Button
+              mode="text"
+              onPress={() => setShowMore(!showMore)}
+              style={styles.showMoreButton}
+              labelStyle={{ color: 'white' }}
+            >
+              {showMore ? "Show Less" : "Show More"}
+            </Button>
           )}
         </View>
       </ScrollView>
@@ -638,6 +738,17 @@ const styles = StyleSheet.create({
   love:{
     backgroundColor: "#000",
     flex: 1,
+  },
+  sourceChipScroll: {
+    marginBottom: 16,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  sourceChip: {
+    backgroundColor: '#404040',
+    marginRight: 8,
+    marginBottom: 8,
   },
   clearButton: {
     position: 'absolute',
@@ -799,5 +910,11 @@ const styles = StyleSheet.create({
     borderColor:'gray',
     borderWidth: 1,
   },
+  historyButton: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    zIndex: 100,
+    padding: 8,
+  },
 });
-

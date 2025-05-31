@@ -518,6 +518,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#141414',
     paddingTop: 20,
+    marginBlockEnd: 70, // Adjusted to lift content above nav bar
     // paddingBottom: 60, // Changed from -20 to 60 to lift content above nav bar
   },
   scrollContent: {

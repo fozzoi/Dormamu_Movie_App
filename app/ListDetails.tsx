@@ -213,15 +213,15 @@ const ListDetails = ({ route, navigation }) => {
               <Text style={styles.actionButtonText}>Search on Telegram</Text>
             </TouchableOpacity>
             <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => navigation.navigate('Main', {
-                screen: 'Search',
-                params: {
-                  prefillQuery: `${selectedMovie.title || selectedMovie.name}${(selectedMovie.release_date || selectedMovie.first_air_date) && ' ' + (selectedMovie.release_date || selectedMovie.first_air_date).slice(0, 4)}`
-                },
-              })}
+                style={styles.actionButton}
+                onPress={() => navigation.navigate('Search', {
+                  screen: 'SearchMain',
+                  params: {
+                    prefillQuery: `${selectedMovie.title || selectedMovie.name}${(selectedMovie.release_date || selectedMovie.first_air_date) && ' ' + (selectedMovie.release_date || selectedMovie.first_air_date).slice(0, 4)}`
+                  }
+                })}
             >
-              <Text style={styles.actionButtonText}>Search on Torrent</Text>
+              <Text style={styles.actionButtonText}>Search on Torrents</Text>
             </TouchableOpacity>
           </View>
           <TouchableOpacity 
@@ -442,6 +442,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
+    marginBlockEnd: 20,
   },
   titleHeader: {
     paddingHorizontal: 16,
@@ -659,6 +660,8 @@ const styles = StyleSheet.create({
   actionButtonText: {
     color: '#fff',
     fontWeight: 'bold',
+    fontSize: 14,
+    textAlign: 'center',
   },
   watchlistButton: {
     alignItems: 'center',
