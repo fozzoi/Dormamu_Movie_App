@@ -24,7 +24,7 @@ import {
   searchGenres,
 } from '../src/tmdb';
 import LoadingCard from './LoadingCard';
-import { LinearGradient } from 'expo-linear-gradient';
+// import { LinearGradient } from 'expo-linear-gradient';
 import { FlashList } from '@shopify/flash-list';
 
 const { width, height } = Dimensions.get('window');

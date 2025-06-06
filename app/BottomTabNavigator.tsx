@@ -129,8 +129,9 @@ const BottomTabNavigator = () => {
         statusBarStyle: 'light',
         statusBarBackgroundColor: '#000000',
         statusBarTranslucent: true,
-        navigationBarColor: '#000000',
-        navigationBarTranslucent: false,
+        // navigationBarColor: 'gray',
+        // navigationBarTranslucent: true,
+        navigationbarshow: false,
       })}
     >
       <Tab.Screen 

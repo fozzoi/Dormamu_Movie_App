@@ -166,6 +166,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#141414', // Netflix dark background
     paddingTop: 40,
     paddingHorizontal: 10,
+    paddingBlockEnd: 60,
 
   },
   headerContainer: {
