@@ -683,10 +683,10 @@ export default function Index() {
             </TouchableOpacity>
           </View>
 
-          {/* Filter by source chips */}
+          {/* Filter by source chips
           {results.length > 0 && (
             <View style={styles.filterContainer}>
-              {/* <Text style={styles.filterTitle}>Filter by Source:</Text> */}
+               <Text style={styles.filterTitle}>Filter by Source:</Text> 
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.sourceChipScroll}>
                 {availableSources.map(source => (
                   <Chip
@@ -710,7 +710,7 @@ export default function Index() {
               </ScrollView>
             </View>
           )}
-          {/* End filter by source chips */}
+          End filter by source chips */}
 
           {renderResults()}
           {results.length > 5 && (
@@ -734,6 +734,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: "center",
     backgroundColor: "rgba(20, 20, 20, 0.9)",
+    paddingBlockEnd: 80,
   },
   love:{
     backgroundColor: "#000",

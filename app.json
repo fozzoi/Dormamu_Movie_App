@@ -6,13 +6,12 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "myapp",
-    "developmentClient": false,
     "jsEngine": "hermes",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "androidNavigationBar": {
       "barStyle": "dark-content",
-      "backgroundColor:": "#000"
+      "backgroundColor": "#000000"
     },
     "android": {
       "adaptiveIcon": {
@@ -37,7 +36,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#000000"
         }
-      ]
+      ],
+      "react-native-edge-to-edge"
     ],
     "experiments": {
       "typedRoutes": true

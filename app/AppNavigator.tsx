@@ -7,17 +7,26 @@ const Stack = createNativeStackNavigator();
 
 const AppNavigator = () => {
   return (
-    <Stack.Navigator
+    <Stack.Navigator 
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: '#000' },
-        animation: 'fade',
+        animation: 'slide_from_right',
+        presentation: 'card',
         animationDuration: 200,
         gestureEnabled: true,
-        fullScreenGestureEnabled: true,
+        fullScreenGestureEnabled: false,
+        navigationBarHidden: false,
+        keyboardHandlingEnabled: false,
       }}
     >
-      <Stack.Screen name="Home" component={BottomTabNavigator} />
+      <Stack.Screen name="Home" component={BottomTabNavigator} 
+        options={{
+          headerShown: false,
+          navigationBarTranslucent: true,
+          headerTransparent: true,
+        }}
+      />
       {/* Add other Stack.Screen components here */}
     </Stack.Navigator>
   );

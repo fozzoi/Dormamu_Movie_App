@@ -14,6 +14,22 @@ const tmdbApi = axios.create({
 // Request cache to avoid duplicate API calls
 const requestCache = new Map();
 
+// --- NEW/UPDATED INTERFACES ---
+
+export interface TMDBCastMember {
+  id: number;
+  name: string;
+  profile_path: string | null;
+  character: string;
+}
+
+export interface TMDBCrewMember {
+  id: number;
+  name: string;
+  profile_path: string | null;
+  job: string;
+}
+
 export interface TMDBResult {
   id: number;
   title?: string;
@@ -25,11 +41,17 @@ export interface TMDBResult {
   release_date?: string;
   first_air_date?: string;
   certification?: string;
-  cast?: string[];
-  castIds?: number[];
-  character?: string; // Character played by the person in the movie/show
-  number_of_seasons?: number; // For TV shows only
-  seasons?: TMDBSeason[]; // For TV shows only
+  
+  // OPTIMIZED: Replaced separate string[]/number[] with structured objects
+  cast?: TMDBCastMember[]; 
+  director?: TMDBCrewMember;
+
+  // For getPersonCombinedCredits context
+  character?: string; 
+  
+  // For TV shows only
+  number_of_seasons?: number; 
+  seasons?: TMDBSeason[];
 }
 
 export interface TMDBSeason {
@@ -74,18 +96,20 @@ export const getPersonDetails = async (personId: number): Promise<TMDBPerson> =>
   return await fetchWithCache(`/person/${personId}`);
 };
 
+// --- FIXED FUNCTION ---
+// Now includes all credits, passing null posters to be handled by getImageUrl
+// and providing a fallback for overview.
 export const getPersonCombinedCredits = async (personId: number): Promise<TMDBResult[]> => {
   const data = await fetchWithCache(`/person/${personId}/combined_credits`);
   
-  // Process cast items to ensure they have all required fields
   const castItems = data.cast || [];
   
   return castItems.map((item: any) => ({
     id: item.id,
     title: item.title || item.name,
     name: item.name,
-    overview: item.overview || "No description available.",
-    poster_path: item.poster_path,
+    overview: item.overview || "No description available for this credit.",
+    poster_path: item.poster_path || null, // Pass null, getImageUrl will handle it
     vote_average: parseFloat((item.vote_average || 0).toFixed(1)),
     media_type: item.media_type || (item.title ? "movie" : "tv"),
     release_date: item.release_date || null,
@@ -128,7 +152,7 @@ export const getSimilarMedia = async (id: number, mediaType: "movie" | "tv", pag
     }));
   } catch (error) {
     console.error(`Error fetching similar ${mediaType} content:`, error);
-    return [];
+    return []; // OPTIMIZED: Return empty array on error
   }
 };
 
@@ -180,36 +204,43 @@ const fetchCertification = async (id: number, mediaType: "movie" | "tv"): Promis
   }
 };
 
-// Optimized cast fetch - lazy loading
-const fetchCast = async (id: number, mediaType: "movie" | "tv") => {
+// --- UPDATED/FIXED FUNCTION ---
+// Optimized cast fetch with fallback strings to prevent render errors
+const fetchCast = async (id: number, mediaType: "movie" | "tv"): Promise<TMDBCastMember[] | null> => {
   try {
     const data = await fetchWithCache(`/${mediaType}/${id}/credits`);
     const cast = data.cast?.slice(0, 10) || [];
-    return cast.length > 0 
-      ? cast.map((member: any) => ({ 
-          name: member.name, 
-          id: member.id,
-          profile_path: member.profile_path,
-          character: member.character
-        })) 
-      : null;
+    
+    if (cast.length === 0) return null;
+
+    return cast.map((member: any) => ({ 
+        // Provide fallbacks for all critical fields
+        id: member.id, // We keep the id (null or not) for the keyExtractor
+        name: member.name || "Unknown Actor", // Ensures name is ALWAYS a string
+        profile_path: member.profile_path || null,
+        character: member.character || "Unknown Character" // Ensures character is ALWAYS a string
+      }));
   } catch (error) {
     console.error(`Error fetching cast for ${mediaType} with ID ${id}:`, error);
     return null;
   }
 };
 
-// Add this new function to fetch crew
-const fetchCrew = async (id: number, mediaType: "movie" | "tv") => {
+// --- UPDATED/FIXED FUNCTION ---
+// Optimized crew fetch with fallback strings to prevent render errors
+const fetchCrew = async (id: number, mediaType: "movie" | "tv"): Promise<TMDBCrewMember | null> => {
   try {
     const data = await fetchWithCache(`/${mediaType}/${id}/credits`);
     const director = data.crew?.find(member => member.job === "Director") || null;
-    return director ? {
+    
+    if (!director) return null;
+
+    return {
       id: director.id,
-      name: director.name,
-      profile_path: director.profile_path,
-      job: director.job
-    } : null;
+      name: director.name || "Unknown Director", // Ensures name is ALWAYS a string
+      profile_path: director.profile_path || null,
+      job: director.job || "Director"
+    };
   } catch (error) {
     console.error(`Error fetching crew for ${mediaType} with ID ${id}:`, error);
     return null;
@@ -234,11 +265,10 @@ const formatBasicItemData = (item: any): Omit<TMDBResult, 'certification' | 'cas
 export const searchTMDB = async (query: string, page: number = 1): Promise<TMDBResult[]> => {
   try {
     const data = await fetchWithCache("/search/multi", { query, page });
-    // Return basic data first, then lazily load additional data if needed
     return data.results.map((item: any) => formatBasicItemData(item));
   } catch (error) {
     console.error("Error fetching data from TMDB:", error);
-    throw new Error("Failed to fetch data from TMDB.");
+    return []; // OPTIMIZED: Return empty array on error
   }
 };
 
@@ -260,16 +290,13 @@ export const getFullDetails = async (item: TMDBResult): Promise<TMDBResult> => {
     return {
       ...item,
       certification,
-      cast: castData?.map(c => c.name),
-      castIds: castData?.map(c => c.id),
-      cast_profiles: castData?.map(c => c.profile_path),
-      characters: castData?.map(c => c.character),
-      director: directorData,
+      cast: castData,       // Cleanly assign the cast array
+      director: directorData, // Cleanly assign the director object
       seasons: seasonsData || []
     };
   } catch (error) {
     console.error("Error in getFullDetails:", error);
-    return item;
+    return item; // Return original item on failure
   }
 };
 
@@ -287,7 +314,7 @@ export const getMediaDetails = async (id: number, mediaType: "movie" | "tv"): Pr
     return await getFullDetails(item);
   } catch (error) {
     console.error(`Error fetching ${mediaType} details:`, error);
-    throw error;
+    throw error; // Let the calling component handle a 404 for a single item
   }
 };
 
@@ -301,7 +328,7 @@ export const getTrendingMovies = async (page: number = 1): Promise<TMDBResult[]>
     }));
   } catch (error) {
     console.error("Error fetching trending movies:", error);
-    throw new Error("Failed to fetch trending movies.");
+    return []; // OPTIMIZED: Return empty array on error
   }
 };
 
@@ -315,7 +342,7 @@ export const getTrendingTV = async (page: number = 1): Promise<TMDBResult[]> => 
     }));
   } catch (error) {
     console.error("Error fetching trending TV:", error);
-    throw new Error("Failed to fetch trending TV shows.");
+    return []; // OPTIMIZED: Return empty array on error
   }
 };
 
@@ -329,7 +356,7 @@ export const getTopRated = async (page: number = 1): Promise<TMDBResult[]> => {
     }));
   } catch (error) {
     console.error("Error fetching top rated movies:", error);
-    throw new Error("Failed to fetch top rated movies.");
+    return []; // OPTIMIZED: Return empty array on error
   }
 };
 
@@ -348,7 +375,7 @@ export const getRegionalMovies = async (region: string = 'IN', page: number = 1)
     }));
   } catch (error) {
     console.error(`Error fetching regional movies for region ${region}:`, error);
-    throw new Error("Failed to fetch regional movies.");
+    return []; // OPTIMIZED: Return empty array on error
   }
 };
 
@@ -416,6 +443,26 @@ export const getAnimeContent = async (page: number = 1, isMovie: boolean = true)
   }
 };
 
+// --- NEW HELPER FUNCTION ---
+// Extracted from fetchAllDiscoveryContent for cleanliness
+export const getAnimatedMovies = async (page: number = 1): Promise<TMDBResult[]> => {
+  try {
+    const data = await fetchWithCache('/discover/movie', { 
+      with_genres: ANIME_GENRE_ID,
+      sort_by: 'popularity.desc',
+      page
+    });
+    return data.results.map((item: any) => ({
+      ...formatBasicItemData(item),
+      media_type: 'movie'
+    }));
+  } catch (error) {
+    console.error('Error fetching animated movies:', error);
+    return [];
+  }
+};
+
+
 // Parallel fetch all discovery content at once for initial page load
 export const fetchAllDiscoveryContent = async () => {
   try {
@@ -435,7 +482,7 @@ export const fetchAllDiscoveryContent = async () => {
       japaneseTV,
       animeMovies,
       animeShows,
-      animatedMovies
+      animatedMovies 
     ] = await Promise.all([
       getTrendingMovies(),
       getTrendingTV(),
@@ -452,13 +499,7 @@ export const fetchAllDiscoveryContent = async () => {
       getLanguageTV('ja'),      // Japanese TV shows
       getAnimeContent(1, true),
       getAnimeContent(1, false),
-      fetchWithCache('/discover/movie', { 
-        with_genres: ANIME_GENRE_ID,
-        sort_by: 'popularity.desc'
-      }).then(data => data.results.map((item: any) => ({
-        ...formatBasicItemData(item),
-        media_type: 'movie'
-      })))
+      getAnimatedMovies()      // Using the clean helper function
     ]);
     
     return {
@@ -481,7 +522,25 @@ export const fetchAllDiscoveryContent = async () => {
     };
   } catch (error) {
     console.error("Error fetching discovery content:", error);
-    throw new Error("Failed to fetch discovery content.");
+    // Return a partial or empty object so the app doesn't crash
+    return {
+      trendingMovies: [],
+      trendingTV: [],
+      topRated: [],
+      regional: [],
+      hindiMovies: [],
+      malayalamMovies: [],
+      tamilMovies: [],
+      hindiTV: [],
+      malayalamTV: [],
+      koreanMovies: [],
+      koreanTV: [],
+      japaneseMovies: [],
+      japaneseTV: [],
+      animeMovies: [],
+      animeShows: [],
+      animatedMovies: []
+    };
   }
 };
 
@@ -508,6 +567,14 @@ export const fetchMoreContentByType = async (type: string, page: number = 1): Pr
       return await getTopRated(page);
     case 'regional':
       return await getRegionalMovies('IN', page);
+    // You can add more language cases here if needed
+    case 'hindi':
+      return await getLanguageMovies('hi', page);
+    case 'malayalam':
+      return await getLanguageMovies('ml', page);
+    case 'korean':
+        return await getLanguageMovies('ko', page);
+    // ... etc.
     default:
       // Search mode
       if (type.startsWith('search:')) {

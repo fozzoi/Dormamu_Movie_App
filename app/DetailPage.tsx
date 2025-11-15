@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import {
   View,
   Dimensions,
@@ -10,12 +10,33 @@ import {
   FlatList,
   Image,
   ActivityIndicator,
+  Modal,
+  Animated as RNAnimated,
 } from 'react-native';
-import { Text, Button, Chip, Divider } from 'react-native-paper';
-import { getImageUrl, getMovieGenres, getSimilarMedia, getSeasonEpisodes, TMDBEpisode, TMDBSeason } from '../src/tmdb';
+import { Text } from 'react-native-paper';
+import { 
+  getImageUrl, 
+  getMovieGenres, 
+  getSimilarMedia, 
+  getSeasonEpisodes, 
+  TMDBEpisode, 
+  TMDBSeason,
+  TMDBCastMember 
+} from '../src/tmdb';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons, MaterialIcons, Feather, AntDesign } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withRepeat,
+  withSequence,
+  Easing,
+  interpolate,
+} from 'react-native-reanimated';
 
 interface HistoryItem {
   query: string;
@@ -23,6 +44,186 @@ interface HistoryItem {
 }
 
 const { width, height } = Dimensions.get('window');
+
+// --- IMAGE SIZE CONSTANTS ---
+const IMAGE_SIZES = {
+  // REDUCED from w342 for list items:
+  THUMBNAIL: 'w154',    
+  // REDUCED from original for blurred background:
+  POSTER_DETAIL: 'w780', 
+  // REDUCED from w185 for profiles:
+  PROFILE: 'w154',      
+  STILL: 'w300',        
+  // Kept ORIGINAL for the modal viewer:
+  BLURRED_BG: 'original', 
+};
+// ----------------------------
+
+// --- SKELETON ANIMATION COMPONENTS ---
+const SHIMMER_WIDTH = width * 0.7; 
+
+const SkeletonShimmer = ({ children, containerStyle = {} }) => {
+  const shimmer = useSharedValue(-SHIMMER_WIDTH);
+
+  useEffect(() => {
+    shimmer.value = withRepeat(
+      withTiming(width + SHIMMER_WIDTH, { duration: 1500, easing: Easing.linear }),
+      -1,
+      false
+    );
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: shimmer.value }],
+    };
+  });
+
+  return (
+    <View style={[styles.skeletonShimmerContainer, containerStyle]}>
+      {children}
+      <Animated.View style={[StyleSheet.absoluteFill, animatedStyle]}>
+        <LinearGradient
+          colors={['transparent', 'rgba(255, 255, 255, 0.15)', 'transparent']} 
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={styles.skeletonShimmerGradient}
+        />
+      </Animated.View>
+    </View>
+  );
+};
+
+// --- SKELETON COMPONENTS ---
+
+const SkeletonHeader = () => (
+    <View style={styles.skeletonHeaderContainer}>
+        {/* Title and Metadata Placeholder */}
+        <View style={styles.heroContent}>
+            <View style={styles.skeletonTextWrapper}>
+                <SkeletonShimmer containerStyle={[styles.skeletonLine, { width: '90%', height: 30, marginBottom: 12 }]} />
+            </View>
+            <View style={styles.skeletonTextWrapper}>
+                <SkeletonShimmer containerStyle={[styles.skeletonLine, { width: '70%', height: 30, marginBottom: 12 }]} />
+            </View>
+
+            <View style={styles.metaRow}>
+                <View style={styles.skeletonChipWrapper}><SkeletonShimmer containerStyle={styles.skeletonChip} /></View>
+                <View style={styles.skeletonChipWrapper}><SkeletonShimmer containerStyle={styles.skeletonChip} /></View>
+                <View style={styles.skeletonChipWrapper}><SkeletonShimmer containerStyle={styles.skeletonChip} /></View>
+            </View>
+            
+            <View style={styles.heroActionRow}>
+                <View style={styles.skeletonHeroIconWrapper}><SkeletonShimmer containerStyle={styles.skeletonHeroIcon} /></View>
+                <View style={styles.skeletonHeroIconWrapper}><SkeletonShimmer containerStyle={styles.skeletonHeroIcon} /></View>
+                <View style={styles.skeletonHeroIconWrapper}><SkeletonShimmer containerStyle={styles.skeletonHeroIcon} /></View>
+            </View>
+        </View>
+    </View>
+);
+
+const SkeletonSection = ({ numItems = 6, itemWidth = width * 0.28, itemHeight = width * 0.42 + 30, isCast = false }) => (
+    <View style={styles.sectionContainer}>
+        <View style={styles.skeletonTextWrapper}>
+            <SkeletonShimmer containerStyle={[styles.skeletonLine, { width: '40%', height: 20, marginBottom: 12 }]} />
+        </View>
+        
+        <FlatList
+          horizontal
+          data={Array(numItems).fill(0)}
+          keyExtractor={(_, index) => `skel-${index}-${isCast}`}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={isCast ? styles.castList : styles.similarList}
+          renderItem={() => (
+            <View style={[styles.skeletonItem, { width: itemWidth }]}>
+                <View style={styles.skeletonItemShimmer}>
+                    <SkeletonShimmer containerStyle={[styles.skeletonImagePlaceholder, { 
+                        width: '100%', 
+                        height: isCast ? itemWidth * 1.4 : itemWidth * 1.5,
+                        borderRadius: isCast ? 8 : 8 
+                    }]} />
+                </View>
+                
+                <View style={styles.skeletonTextWrapper}>
+                    <SkeletonShimmer containerStyle={[styles.skeletonLine, { width: '80%', height: 14, marginTop: 6 }]} />
+                </View>
+                
+                <View style={styles.skeletonTextWrapper}>
+                    <SkeletonShimmer containerStyle={[styles.skeletonLine, { width: '60%', height: 12, marginTop: 4 }]} />
+                </View>
+            </View>
+          )}
+        />
+    </View>
+);
+
+const SkeletonDetails = () => (
+  <View style={styles.detailsContent}>
+    
+    {/* Genres section */}
+    <View style={styles.sectionContainer}>
+      <View style={styles.skeletonTextWrapper}>
+        <SkeletonShimmer containerStyle={[styles.skeletonLine, { width: '30%', height: 20, marginBottom: 12 }]} />
+      </View>
+      
+      {/* Genre chips row */}
+      <View style={styles.genreScroll}>
+        {[1, 2, 3, 4].map((i) => (
+          <View key={i} style={styles.skeletonChipHorizontal}>
+            <SkeletonShimmer containerStyle={[styles.skeletonLine, { width: 80, height: 30 }]} />
+          </View>
+        ))}
+      </View>
+    </View>
+
+    {/* Overview section */}
+    <View style={styles.sectionContainer}>
+      <View style={styles.skeletonTextWrapper}>
+        <SkeletonShimmer containerStyle={[styles.skeletonLine, { width: '50%', height: 20, marginBottom: 12 }]} />
+      </View>
+      
+      {/* Overview text lines */}
+      {[1, 2, 3].map((i) => (
+        <View key={i} style={styles.skeletonTextWrapper}>
+            <SkeletonShimmer containerStyle={[styles.skeletonLine, { width: i === 3 ? '80%' : '100%', height: 16, marginBottom: 8 }]} />
+        </View>
+      ))}
+    </View>
+    
+    {/* Cast section */}
+    <SkeletonSection 
+        numItems={5} 
+        itemWidth={width * 0.25} 
+        isCast={true}
+    /> 
+    
+    {/* Director section placeholder */}
+    <View style={styles.sectionContainer}>
+        <View style={styles.skeletonTextWrapper}>
+            <SkeletonShimmer containerStyle={[styles.skeletonLine, { width: '30%', height: 20, marginBottom: 12 }]} />
+        </View>
+        <View style={styles.glassCard}>
+            <View style={styles.directorContainer}>
+                 <View style={styles.skeletonTextWrapper}>
+                    <SkeletonShimmer containerStyle={[styles.skeletonLine, { width: 120, height: 16 }]} />
+                </View>
+                 <View style={styles.skeletonTextWrapper}>
+                    <SkeletonShimmer containerStyle={[styles.skeletonLine, { width: 20, height: 20 }]} />
+                </View>
+            </View>
+        </View>
+    </View>
+
+    {/* Similar section */}
+    <SkeletonSection 
+        numItems={4} 
+        itemWidth={width * 0.28} 
+        isCast={false}
+    /> 
+  </View>
+);
+// ---------------------------------------------
+
 
 const DetailPage = () => {
   const route = useRoute();
@@ -33,38 +234,90 @@ const DetailPage = () => {
   const [showFullOverview, setShowFullOverview] = useState(false);
   const [genres, setGenres] = useState([]);
   const [similarMovies, setSimilarMovies] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // <-- Set to TRUE initially
   
-  // New states for TV show seasons
   const [selectedSeason, setSelectedSeason] = useState<number | null>(null);
   const [episodes, setEpisodes] = useState<TMDBEpisode[]>([]);
   const [loadingEpisodes, setLoadingEpisodes] = useState(false);
+  
+  const [isPosterModalVisible, setIsPosterModalVisible] = useState(false);
 
-  // Update cast mapping to include all required data
-  const castWithCharacters = useMemo(() => {
-    if (!movie.cast) return [];
-    return movie.cast.map((name, index) => ({
-      id: movie.castIds?.[index],
-      name,
-      character: movie.characters?.[index] || 'Unknown Role',
-      profile_path: movie.cast_profiles?.[index],
-    }));
-  }, [movie]);
+  const scrollY = useRef(new RNAnimated.Value(0)).current;
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  const scale = useSharedValue(1);
+  const animatedBgStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: scale.value }],
+    };
+  });
+
+  // Scroll-based animations
+  const posterTranslateY = scrollY.interpolate({
+    inputRange: [0, height * 0.3],
+    outputRange: [0, -30],
+    extrapolate: 'clamp',
+  });
+
+  const posterOpacity = scrollY.interpolate({
+    inputRange: [0, height * 0.2, height * 0.35],
+    outputRange: [1, 0.5, 0],
+    extrapolate: 'clamp',
+  });
+
+  const overlayOpacity = scrollY.interpolate({
+    inputRange: [0, height * 0.15, height * 0.3],
+    outputRange: [0, 0.7, 1],
+    extrapolate: 'clamp',
+  });
+
+  const overlayBorderRadius = scrollY.interpolate({
+    inputRange: [0, height * 0.2],
+    outputRange: [0, 32],
+    extrapolate: 'clamp',
+  });
+
+  const castWithCharacters: TMDBCastMember[] = useMemo(() => {
+    if (!movie.cast || !Array.isArray(movie.cast)) {
+      return [];
+    }
+    return movie.cast;
+  }, [movie.cast]);
 
   useEffect(() => {
-    checkIfInWatchlist();
-    fetchGenres();
-    fetchSimilarMovies();
-    
-    // Set the first season as selected by default if it's a TV show
-    if (movie.media_type === 'tv' && movie.seasons && movie.seasons.length > 0) {
-      const firstSeason = movie.seasons.find(s => s.season_number > 0);
-      if (firstSeason) {
-        setSelectedSeason(firstSeason.season_number);
-        fetchEpisodes(firstSeason.season_number);
+    scale.value = withRepeat(
+      withSequence(
+        withTiming(1.15, { duration: 15000, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 15000, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1, true
+    );
+
+    const loadDetails = async () => {
+      try {
+        await checkIfInWatchlist();
+        await fetchGenres();
+        await fetchSimilarMovies();
+        
+        if (movie.media_type === 'tv' && movie.seasons && movie.seasons.length > 0) {
+          const firstSeason = movie.seasons.find(s => s.season_number > 0);
+          if (firstSeason) {
+            setSelectedSeason(firstSeason.season_number);
+            await fetchEpisodes(firstSeason.season_number);
+          } else if (movie.seasons.length > 0) {
+            setSelectedSeason(movie.seasons[0].season_number);
+            await fetchEpisodes(movie.seasons[0].season_number);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading details:", error);
+      } finally {
+        setIsLoading(false); // <-- Stop loading after all async calls complete
       }
-    }
-  }, []);
+    };
+
+    loadDetails();
+  }, [movie.id, scale]); 
 
   const fetchGenres = async () => {
     try {
@@ -76,24 +329,20 @@ const DetailPage = () => {
   };
 
   const fetchSimilarMovies = async () => {
-    setIsLoading(true);
     try {
       const media = await getSimilarMedia(movie.id, movie.media_type);
       setSimilarMovies(media);
     } catch (error) {
       console.error('Failed to fetch similar movies:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
   
-  // New function to fetch episodes for a season
   const fetchEpisodes = async (seasonNumber: number) => {
     setLoadingEpisodes(true);
     try {
       const seasonEpisodes = await getSeasonEpisodes(movie.id, seasonNumber);
       setEpisodes(seasonEpisodes);
-    } catch (error) {
+    } catch (error) { 
       console.error('Failed to fetch episodes:', error);
       setEpisodes([]);
     } finally {
@@ -146,6 +395,14 @@ const DetailPage = () => {
     });
   };
   
+  const openTorrentSearch = () => {
+    const query = `${movie.title || movie.name} ${(movie.release_date || movie.first_air_date)?.slice(0, 4) || ''}`;
+    navigation.navigate('Search', {
+      screen: 'SearchMain',
+      params: { prefillQuery: query }
+    });
+  };
+  
   const handleViewGenres = () => {
     navigation.navigate('ViewAll', { 
       title: 'Genres', 
@@ -155,13 +412,11 @@ const DetailPage = () => {
     });
   };
   
-  // Handle season selection
   const handleSeasonSelect = (seasonNumber: number) => {
     setSelectedSeason(seasonNumber);
     fetchEpisodes(seasonNumber);
   };
 
-  // Format minutes to hours and minutes
   const formatRuntime = (minutes: number | null) => {
     if (!minutes) return 'N/A';
     const hours = Math.floor(minutes / 60);
@@ -171,7 +426,6 @@ const DetailPage = () => {
       : `${remainingMinutes}m`;
   };
 
-  // Update cast section render
   const renderCastSection = () => (
     <View style={styles.sectionContainer}>
       <View style={styles.sectionHeader}>
@@ -190,7 +444,7 @@ const DetailPage = () => {
       <FlatList
         horizontal
         data={castWithCharacters.slice(0, 10)}
-        keyExtractor={(item) => `cast-${item.id}`}
+        keyExtractor={(item, index) => `cast-${item?.id || 'item'}-${index}`}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.castList}
         renderItem={({ item }) => (
@@ -200,8 +454,9 @@ const DetailPage = () => {
           >
             <Image
               source={{ 
+                // --- OPTIMIZED SIZE: Use THUMBNAIL size (w154) for cast photos ---
                 uri: item.profile_path 
-                  ? getImageUrl(item.profile_path, 'w185')
+                  ? getImageUrl(item.profile_path, IMAGE_SIZES.THUMBNAIL)
                   : 'https://www.themoviedb.org/assets/2/v4/glyphicons/basic/glyphicons-basic-4-user-grey-d8fe957375e70239d6abdd549fd7568c89281b2179b5f4470e2e12895792dfa5.svg'
               }}
               style={styles.castImage}
@@ -214,7 +469,6 @@ const DetailPage = () => {
     </View>
   );
 
-  // Similar movies section
   const renderSimilarMoviesSection = () => (
     <View style={styles.sectionContainer}>
       <View style={styles.sectionHeader}>
@@ -233,13 +487,11 @@ const DetailPage = () => {
         )}
       </View>
       
-      {isLoading ? (
-        <Text style={styles.loadingText}>Loading similar titles...</Text>
-      ) : similarMovies.length > 0 ? (
+      {similarMovies.length > 0 ? (
         <FlatList
           horizontal
           data={similarMovies.slice(0, 10)}
-          keyExtractor={(item) => `similar-${item.id}`}
+          keyExtractor={(item, index) => `similar-${item?.id || 'item'}-${index}`}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.similarList}
           renderItem={({ item }) => (
@@ -253,7 +505,8 @@ const DetailPage = () => {
               })}
             >
               <Image
-                source={{ uri: getImageUrl(item.poster_path, 'w342') }}
+                // --- OPTIMIZED SIZE: Use THUMBNAIL size (w154) for similar cards ---
+                source={{ uri: getImageUrl(item.poster_path, IMAGE_SIZES.THUMBNAIL) }}
                 style={styles.similarImage}
               />
               <Text style={styles.similarTitle} numberOfLines={2}>
@@ -272,13 +525,11 @@ const DetailPage = () => {
     </View>
   );
   
-  // TV show seasons section
   const renderSeasonsSection = () => {
     if (movie.media_type !== 'tv' || !movie.seasons || movie.seasons.length === 0) {
       return null;
     }
     
-    // Filter out season 0 (specials) if there are other seasons
     const filteredSeasons = movie.seasons.length > 1 
       ? movie.seasons.filter(season => season.season_number > 0)
       : movie.seasons;
@@ -287,7 +538,6 @@ const DetailPage = () => {
       <View style={styles.sectionContainer}>
         <Text style={styles.sectionTitle}>Seasons</Text>
         
-        {/* Season Tabs */}
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false}
@@ -302,34 +552,44 @@ const DetailPage = () => {
               ]}
               onPress={() => handleSeasonSelect(season.season_number)}
             >
-              <Text 
-                style={[
-                  styles.seasonTabText,
-                  selectedSeason === season.season_number && styles.seasonTabTextActive
-                ]}
+              <BlurView
+                intensity={90}
+                tint="dark"
+                style={styles.seasonTabBlur}
               >
-                {season.name}
-              </Text>
+                <Text 
+                  style={[
+                    styles.seasonTabText,
+                    selectedSeason === season.season_number && styles.seasonTabTextActive
+                  ]}
+                >
+                  {season.name}
+                </Text>
+              </BlurView>
             </TouchableOpacity>
           ))}
         </ScrollView>
         
-        {/* Episodes List */}
         {selectedSeason !== null && (
           <View style={styles.episodesContainer}>
             {loadingEpisodes ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#E50914" />
-                <Text style={styles.loadingText}>Loading episodes...</Text>
               </View>
             ) : episodes.length > 0 ? (
               episodes.map((episode) => (
-                <View key={`episode-${episode.id}`} style={styles.episodeCard}>
+                <BlurView
+                  key={`episode-${episode.id}`}
+                  style={styles.episodeCard}
+                  intensity={90}
+                  tint="dark"
+                >
                   <View style={styles.episodeHeader}>
                     <Image 
                       source={{ 
+                        // --- OPTIMIZED SIZE: Use STILL size (w300) for episode images ---
                         uri: episode.still_path 
-                          ? getImageUrl(episode.still_path, 'w300') 
+                          ? getImageUrl(episode.still_path, IMAGE_SIZES.STILL) 
                           : 'https://via.placeholder.com/300x169?text=No+Image'
                       }}
                       style={styles.episodeImage}
@@ -375,7 +635,7 @@ const DetailPage = () => {
                       {episode.overview || 'No description available.'}
                     </Text>
                   </View>
-                </View>
+                </BlurView>
               ))
             ) : (
               <Text style={styles.noEpisodesText}>
@@ -389,161 +649,271 @@ const DetailPage = () => {
   };
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Hero Section with Large Background Image */}
-      <View style={styles.heroContainer}>
-        <ImageBackground
-          source={{ uri: getImageUrl(movie.poster_path, 'original') }}
-          style={styles.imageBackground}
-          resizeMode="cover"
+    <View style={styles.baseContainer}>
+      
+      <View style={styles.animatedBgContainer}>
+        <Animated.Image
+          // --- OPTIMIZED SIZE: Use POSTER_DETAIL (w780) for the blurred background ---
+          source={{ uri: getImageUrl(movie.poster_path, IMAGE_SIZES.POSTER_DETAIL) }}
+          style={[styles.blurredBackground, animatedBgStyle]}
+          blurRadius={40}
+        />
+      </View>
+      <View style={styles.backgroundOverlay} />
+
+      <Modal
+        visible={isPosterModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsPosterModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <TouchableOpacity
+            style={styles.modalCloseButton}
+            onPress={() => setIsPosterModalVisible(false)}
+          >
+            <Ionicons name="close" size={28} color="#fff" />
+          </TouchableOpacity>
+          <Image
+            // --- FULL RESOLUTION: Use BLURRED_BG (original) for the modal image ---
+            source={{ uri: getImageUrl(movie.poster_path, IMAGE_SIZES.BLURRED_BG) }}
+            style={styles.modalImage}
+            resizeMode="contain"
+          />
+        </View>
+      </Modal>
+
+      <ScrollView 
+        ref={scrollViewRef}
+        style={styles.container} 
+        showsVerticalScrollIndicator={false}
+        onScroll={RNAnimated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false }
+        )}
+        scrollEventThrottle={16}
+      >
+        <RNAnimated.View 
+          style={[
+            styles.heroContainer,
+            {
+              transform: [{ translateY: posterTranslateY }],
+              opacity: posterOpacity,
+            }
+          ]}
         >
-          <View style={styles.gradientOverlay}>
-            <TouchableOpacity
-              onPress={() => navigation.goBack()}
-              style={styles.backButton}
+          <TouchableOpacity 
+            activeOpacity={0.9} 
+            onPress={() => setIsPosterModalVisible(true)}
+          >
+            <ImageBackground
+              // --- OPTIMIZED SIZE: Use POSTER_DETAIL (w780) for the main image background ---
+              source={{ uri: getImageUrl(movie.poster_path, IMAGE_SIZES.POSTER_DETAIL) }}
+              style={styles.imageBackground}
+              resizeMode="cover"
             >
-              <Ionicons name="arrow-back" size={28} color="#fff" />
-            </TouchableOpacity>
-            
-            <View style={styles.heroContent}>
-              <Text style={styles.title}>
-                {movie.title || movie.name}
-              </Text>
-              <Text style={styles.year}>
-                {(movie.release_date || movie.first_air_date)?.split('-')[0] || 'N/A'}
-              </Text>
-              
-              <View style={styles.metaRow}>
-                <View style={styles.ratingContainer}>
-                  <Ionicons name="star" size={16} color="#E50914" />
-                  <Text style={styles.rating}>{movie.vote_average.toFixed(1)}</Text>
-                </View>
-                <Text style={styles.metaDot}>•</Text>
-                <Text style={styles.certification}>{movie.certification || 'Unrated'}</Text>
-                <Text style={styles.metaDot}>•</Text>
-                <Text style={styles.mediaType}>{movie.media_type === 'movie' ? 'Movie' : 'TV Show'}</Text>
-              </View>
-              <View style={styles.contentRow}>
-                <View style={styles.actionButtons}>
-                  <TouchableOpacity 
-                    style={styles.telegramButton}
-                    onPress={openTelegramSearch}
-                  >
-                    <Text style={styles.telegramButtonText}>Search on Telegram</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                      style={styles.telegramButton}
-                      onPress={() => navigation.navigate('Search', {
-                        screen: 'SearchMain',
-                        params: {
-                          prefillQuery: `${movie.title || movie.name}${(movie.release_date 
-                            || movie.first_air_date) && ' ' + (movie.release_date ||
-                             movie.first_air_date).slice(0, 4)}`
-                        }
-                      })}>
-                    <Text style={styles.telegramButtonText}>Search on Torrents</Text>
-                  </TouchableOpacity>
-                </View>
-                <TouchableOpacity 
-                  style={styles.watchlistButton}
-                  onPress={toggleWatchlist}
+              <LinearGradient
+                colors={[
+                  'rgba(20, 20, 20, 0.8)',
+                  'transparent',
+                  'rgba(20, 20, 20, 0.85)'
+                ]}
+                style={styles.gradientOverlay}
+              >
+                <TouchableOpacity
+                  onPress={() => navigation.goBack()}
+                  style={styles.backButton}
                 >
-                  <View style={styles.circleButton}>
-                    <MaterialIcons 
-                      name={isInWatchlist ? "bookmark" : "bookmark-outline"} 
-                      size={24} 
-                      color="#fff" 
-                    />
+                  <BlurView
+                    intensity={90}
+                    tint="dark"
+                    style={styles.blurViewStyle}
+                  >
+                    <Ionicons name="arrow-back" size={24} color="#fff" />
+                  </BlurView>
+                </TouchableOpacity>
+                
+                {/* RENDER SKELETON HEADER OR REAL HEADER CONTENT */}
+                {isLoading ? (
+                    <SkeletonHeader />
+                ) : (
+                <View style={styles.heroContent}>
+                  <Text style={styles.title}>
+                    {movie.title || movie.name}
+                  </Text>
+                  
+                  <View style={styles.metaRow}>
+                    <View style={styles.metaChip}>
+                      <Ionicons name="star" size={14} color="#E50914" />
+                      <Text style={styles.metaText}>{movie.vote_average.toFixed(1)}</Text>
+                    </View>
+                    <View style={styles.metaChip}>
+                      <Text style={styles.metaText}>
+                        {(movie.release_date || movie.first_air_date)?.split('-')[0] || 'N/A'}
+                      </Text>
+                    </View>
+                    <View style={styles.metaChip}>
+                      <Text style={styles.metaText}>{movie.certification || 'Unrated'}</Text>
+                    </View>
+                    <View style={styles.metaChip}>
+                      <Text style={styles.metaText}>{movie.media_type === 'movie' ? 'Movie' : 'TV Show'}</Text>
+                    </View>
                   </View>
+                  
+                  <View style={styles.heroActionRow}>
+                    <TouchableOpacity onPress={openTelegramSearch}>
+                      <BlurView style={styles.heroIcon} intensity={90} tint="dark">
+                        <Ionicons name="paper-plane-outline" size={20} color="#fff" />
+                      </BlurView>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={openTorrentSearch}>
+                      <BlurView style={styles.heroIcon} intensity={90} tint="dark">
+                        <Feather name="download" size={20} color="#fff" />
+                      </BlurView>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={toggleWatchlist}>
+                      <BlurView style={styles.heroIcon} intensity={90} tint="dark">
+                        <MaterialIcons 
+                          name={isInWatchlist ? "bookmark" : "bookmark-outline"} 
+                          size={20} 
+                          color={isInWatchlist ? "#E50914" : "#fff"} 
+                        />
+                      </BlurView>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                )}
+              </LinearGradient>
+            </ImageBackground>
+          </TouchableOpacity>
+          
+          <RNAnimated.View
+            style={[
+              styles.blurredRoundedOverlay,
+              {
+                opacity: overlayOpacity,
+                borderRadius: overlayBorderRadius,
+              }
+            ]}
+            pointerEvents="none"
+          >
+            <BlurView
+              intensity={80}
+              tint="dark"
+              style={StyleSheet.absoluteFill}
+            />
+          </RNAnimated.View>
+        </RNAnimated.View>
+
+        <View style={styles.contentContainer}>
+          
+          {/* RENDER SKELETON DETAILS OR REAL SECTIONS */}
+          {isLoading ? (
+             <SkeletonDetails />
+          ) : (
+          <>
+            <View style={styles.sectionContainer}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Genres</Text>
+                <TouchableOpacity onPress={handleViewGenres}>
+                  <Text style={styles.viewAll}>View All</Text>
                 </TouchableOpacity>
               </View>
+              
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.genreScroll}>
+                {genres.map(genre => (
+                  <BlurView 
+                    key={genre.id} 
+                    style={styles.genreChip}
+                    intensity={90}
+                    tint="dark"
+                  >
+                    <TouchableOpacity
+                       onPress={() => navigation.navigate('ViewAll', { 
+                        title: `${genre.name} ${movie.media_type === 'movie' ? 'Movies' : 'Shows'}`,
+                        genreId: genre.id,
+                        type: 'genre',
+                        data: []
+                      })}
+                    >
+                      <Text style={styles.genreChipText}>
+                        {genre.name}
+                      </Text>
+                    </TouchableOpacity>
+                  </BlurView>
+                ))}
+              </ScrollView>
             </View>
-          </View>
-        </ImageBackground>
-      </View>
-
-      {/* Content Section */}
-      <View style={styles.contentContainer}>
-        {/* Genres Section */}
-        <View style={styles.sectionContainer}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Genres</Text>
-            <TouchableOpacity onPress={handleViewGenres}>
-              <Text style={styles.viewAll}>View All</Text>
-            </TouchableOpacity>
-          </View>
-          
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.genreScroll}>
-            {genres.map(genre => (
-              <Chip 
-                key={genre.id} 
-                style={styles.genreChip} 
-                textStyle={styles.genreChipText}
-                onPress={() => navigation.navigate('ViewAll', { 
-                  title: `${genre.name} ${movie.media_type === 'movie' ? 'Movies' : 'Shows'}`,
-                  genreId: genre.id,
-                  type: 'genre',
-                  data: []  // Start with empty data, let ViewAll fetch it
-                })}
-              >
-                {genre.name}
-              </Chip>
-            ))}
-          </ScrollView>
-        </View>
-        
-        {/* Overview Section */}
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>Overview</Text>
-          <Text style={styles.overviewText}>
-            {showFullOverview || movie.overview.length <= 150
-              ? `${movie.overview} `
-              : `${movie.overview.slice(0, 150)}... `}
-            {movie.overview.length > 150 && (
-              <Text
-                onPress={() => setShowFullOverview(!showFullOverview)}
-                style={styles.showMore}
-              >
-                {showFullOverview ? 'Show Less' : 'Show More'}
+            
+            <View style={styles.sectionContainer}>
+              <Text style={styles.sectionTitle}>Overview</Text>
+              <Text style={styles.overviewText}>
+                {showFullOverview || movie.overview.length <= 150
+                  ? `${movie.overview} `
+                  : `${movie.overview.slice(0, 150)}... `}
+                {movie.overview.length > 150 && (
+                  <Text
+                    onPress={() => setShowFullOverview(!showFullOverview)}
+                    style={styles.showMore}
+                  >
+                    {showFullOverview ? 'Show Less' : 'Show More'}
+                  </Text>
+                )}
               </Text>
+            </View>
+            
+            {castWithCharacters.length > 0 && renderCastSection()}
+
+            {movie.media_type === 'movie' && movie.director && (
+              <View style={styles.sectionContainer}>
+                <Text style={styles.sectionTitle}>Director</Text>
+                <BlurView style={styles.glassCard} intensity={90} tint="dark">
+                  <TouchableOpacity 
+                    style={styles.directorContainer}
+                    onPress={() => navigation.navigate('CastDetails', { personId: movie.director.id })}
+                  >
+                    <Text style={styles.directorName}>{movie.director.name}</Text>
+                    <Feather name="chevron-right" size={20} color="#E50914" />
+                  </TouchableOpacity>
+                </BlurView>
+              </View>
             )}
-          </Text>
+            
+            {movie.media_type === 'tv' && renderSeasonsSection()}
+            
+            {renderSimilarMoviesSection()}
+          </>
+          )}
         </View>
-        
-        {/* Director Section - only for movies */}
-        {movie.media_type === 'movie' && movie.director && (
-          <View style={styles.sectionContainer}>
-            <Text style={styles.sectionTitle}>Director</Text>
-            <TouchableOpacity 
-              style={styles.directorContainer}
-              onPress={() => navigation.navigate('CastDetails', { personId: movie.director.id })}
-            >
-              <Text style={styles.directorName}>{movie.director.name}</Text>
-              <Feather name="chevron-right" size={20} color="#E50914" />
-            </TouchableOpacity>
-          </View>
-        )}
-        
-        {/* TV Show Seasons and Episodes - only for TV shows */}
-        {movie.media_type === 'tv' && renderSeasonsSection()}
-        
-        {/* Cast Section */}
-        {castWithCharacters.length > 0 && renderCastSection()}
-        
-        {/* Similar Movies/Shows Section */}
-        {renderSimilarMoviesSection()}
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  baseContainer: {
     flex: 1,
     backgroundColor: '#141414',
   },
+  animatedBgContainer: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+  },
+  blurredBackground: {
+    width: '100%',
+    height: '100%',
+  },
+  backgroundOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(20, 20, 20, 0.85)',
+  },
+  container: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
   heroContainer: {
-    height: height * 0.65,
+    height: height * 0.55,
+    position: 'relative',
   },
   imageBackground: {
     width: '100%',
@@ -551,7 +921,6 @@ const styles = StyleSheet.create({
   },
   gradientOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
     paddingTop: 40,
     justifyContent: 'space-between',
   },
@@ -560,9 +929,13 @@ const styles = StyleSheet.create({
     top: 70,
     left: 16,
     zIndex: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     borderRadius: 20,
+    overflow: 'hidden',
+  },
+  blurViewStyle: {
     padding: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   heroContent: {
     padding: 16,
@@ -570,84 +943,49 @@ const styles = StyleSheet.create({
     marginTop: 'auto',
   },
   title: {
-    fontSize: width * 0.08,
+    fontSize: 30,
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 4,
-  },
-  year: {
-    fontSize: width * 0.04,
-    color: '#ddd',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    flexWrap: 'wrap',
+    marginBottom: 20,
   },
-  ratingContainer: {
+  metaChip: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginRight: 8,
+    marginBottom: 8,
   },
-  rating: {
-    fontSize: width * 0.035,
+  metaText: {
+    fontSize: 14,
     color: '#fff',
     marginLeft: 4,
+    fontWeight: '500',
   },
-  metaDot: {
-    fontSize: width * 0.035,
-    color: '#aaa',
-    marginHorizontal: 6,
-  },
-  certification: {
-    fontSize: width * 0.035,
-    color: '#fff',
-  },
-  mediaType: {
-    fontSize: width * 0.035,
-    color: '#fff',
-  },
-  contentRow: {
+  heroActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 16,
   },
-  actionButtons: {
-    flex: 1,
-    flexDirection: 'row',
+  heroIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
     alignItems: 'center',
-    justifyContent: 'space-between',
     marginRight: 16,
-  },
-  watchlistButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  circleButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#E50914',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  telegramButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: '#fff',
-    padding: 10,
-    borderRadius: 8,
-    width: '48%',  // Adjust to control button width
-    alignItems: 'center',
-  },
-  telegramButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
+    overflow: 'hidden',
   },
   contentContainer: {
     padding: 16,
-    backgroundColor: '#141414',
+    backgroundColor: 'transparent',
     marginBottom: 24,
   },
   sectionContainer: {
@@ -660,7 +998,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: width * 0.045,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#fff',
     marginBottom: 8,
@@ -668,7 +1006,7 @@ const styles = StyleSheet.create({
   viewAll: {
     color: '#E50914',
     fontWeight: '600',
-    fontSize: width * 0.035,
+    fontSize: 14,
   },
   genreScroll: {
     flexDirection: 'row',
@@ -676,31 +1014,36 @@ const styles = StyleSheet.create({
   },
   genreChip: {
     marginRight: 8,
-    backgroundColor: '#333',
     borderRadius: 16,
+    overflow: 'hidden',
   },
   genreChipText: {
     color: '#fff',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    fontSize: 14,
   },
   overviewText: {
-    fontSize: width * 0.037,
+    fontSize: 16,
     color: '#ddd',
-    lineHeight: 22,
+    lineHeight: 24,
   },
   showMore: {
     color: '#E50914',
-    fontWeight: '600',
+    fontWeight: 'bold',
+  },
+  glassCard: {
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   directorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#282828',
     padding: 12,
-    borderRadius: 8,
   },
   directorName: {
-    fontSize: width * 0.04,
+    fontSize: 16,
     color: '#fff',
     fontWeight: '500',
   },
@@ -709,7 +1052,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   castItem: {
-    width: width * 0.28,
+    width: width * 0.28, // Using a consistent size
     marginRight: 12,
   },
   castImage: {
@@ -719,16 +1062,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#2a2a2a',
   },
   castName: {
-    fontSize: width * 0.035,
+    fontSize: 14,
     color: '#fff',
     fontWeight: '600',
     marginTop: 4,
   },
   characterName: {
-    fontSize: width * 0.03,
+    fontSize: 12,
     color: '#aaa',
   },
-  // Similar Movies Styles
   similarList: {
     paddingTop: 8,
     paddingBottom: 16,
@@ -744,7 +1086,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#2a2a2a',
   },
   similarTitle: {
-    fontSize: width * 0.035,
+    fontSize: 14,
     color: '#fff',
     fontWeight: '600',
     marginTop: 4,
@@ -755,42 +1097,42 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   similarRating: {
-    fontSize: width * 0.03,
+    fontSize: 12,
     color: '#aaa',
     marginLeft: 4,
   },
   loadingText: {
     color: '#aaa',
-    fontSize: width * 0.035,
+    fontSize: 14,
     padding: 16,
     textAlign: 'center',
   },
   noSimilarText: {
     color: '#aaa',
-    fontSize: width * 0.035,
+    fontSize: 14,
     padding: 16,
     textAlign: 'center',
   },
-  // TV Show Seasons & Episodes Styles
   seasonTabsContainer: {
     paddingVertical: 8,
   },
   seasonTab: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
     marginRight: 10,
     borderRadius: 20,
-    backgroundColor: '#282828',
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'transparent',
   },
   seasonTabActive: {
-    backgroundColor: '#333',
     borderColor: '#E50914',
+  },
+  seasonTabBlur: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
   seasonTabText: {
     color: '#ddd',
-    fontSize: width * 0.035,
+    fontSize: 14,
     fontWeight: '500',
   },
   seasonTabTextActive: {
@@ -806,7 +1148,6 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   episodeCard: {
-    backgroundColor: '#282828',
     borderRadius: 8,
     marginBottom: 12,
     overflow: 'hidden',
@@ -831,7 +1172,7 @@ const styles = StyleSheet.create({
   episodeNumber: {
     color: '#fff',
     fontWeight: 'bold',
-    fontSize: width * 0.035,
+    fontSize: 14,
   },
   episodeContent: {
     padding: 12,
@@ -845,7 +1186,7 @@ const styles = StyleSheet.create({
   episodeTitle: {
     color: '#fff',
     fontWeight: 'bold',
-    fontSize: width * 0.04,
+    fontSize: 15,
     flex: 1,
   },
   episodeRatingContainer: {
@@ -855,7 +1196,7 @@ const styles = StyleSheet.create({
   episodeRating: {
     color: '#fff',
     marginLeft: 4,
-    fontSize: width * 0.035,
+    fontSize: 14,
   },
   episodeMetaRow: {
     flexDirection: 'row',
@@ -864,19 +1205,123 @@ const styles = StyleSheet.create({
   },
   episodeMetaText: {
     color: '#aaa',
-    fontSize: width * 0.03,
+    fontSize: 12,
+  },
+  metaDot: {
+    color: '#aaa',
+    marginHorizontal: 6,
   },
   episodeOverview: {
     color: '#ddd',
-    fontSize: width * 0.035,
+    fontSize: 14,
     lineHeight: 20,
   },
   noEpisodesText: {
     color: '#aaa',
-    fontSize: width * 0.035,
+    fontSize: 14,
     padding: 16,
     textAlign: 'center',
   },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCloseButton: {
+    position: 'absolute',
+    top: 70,
+    right: 20,
+    zIndex: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 20,
+    padding: 8,
+  },
+  modalImage: {
+    width: '100%',
+    height: '80%',
+  },
+  blurredRoundedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+    backgroundColor: 'transparent',
+  },
+
+  // --- SKELETON SPECIFIC STYLES ---
+
+  skeletonHeaderContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'transparent',
+    paddingTop: 40,
+    // Add a temporary background to the whole hero area to ensure the shimmer works
+    backgroundColor: 'rgba(20, 20, 20, 0.5)',
+  },
+  skeletonShimmerContainer: {
+    overflow: 'hidden',
+    backgroundColor: 'transparent',
+    // The placeholder view handles the background color
+  },
+  skeletonShimmerGradient: {
+    flex: 1,
+    width: SHIMMER_WIDTH, 
+  },
+  // Wrapper for text lines to control height and margin
+  skeletonTextWrapper: {
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  // Placeholder for any rectangular content (text lines, titles)
+  skeletonLine: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  skeletonChipWrapper: {
+    width: 60,
+    height: 20,
+    borderRadius: 8,
+    marginRight: 8,
+    marginBottom: 8,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)', // Placeholder background
+  },
+  skeletonChip: {
+    width: '100%',
+    height: '100%',
+  },
+  skeletonHeroIconWrapper: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 16,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)', // Placeholder background
+  },
+  skeletonHeroIcon: {
+    width: '100%',
+    height: '100%',
+  },
+  skeletonItem: {
+    marginRight: 12,
+  },
+  skeletonItemShimmer: {
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)', // Placeholder background
+    width: '100%',
+    height: 'auto',
+  },
+  skeletonImagePlaceholder: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    overflow: 'hidden',
+  },
+  skeletonChipHorizontal: {
+    marginRight: 8,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  }
 });
 
 export default DetailPage;

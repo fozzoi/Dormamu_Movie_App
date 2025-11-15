@@ -4,7 +4,7 @@ import AppNavigator from "./AppNavigator";
 
 function RootLayout() {
   return (
-    <SafeAreaProvider>
+    <SafeAreaProvider style={{ flex: 1, backgroundColor: '#000' }}>
       <AppNavigator />
     </SafeAreaProvider>
   );
