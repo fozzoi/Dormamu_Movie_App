@@ -1,4 +1,6 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+// DetailPage.tsx
+import React, { useEffect, useState, useMemo, useRef, useContext } from 'react';
+import { ScrollContext } from '../context/ScrollContext';
 import {
   View,
   Dimensions,
@@ -37,6 +39,7 @@ import Animated, {
   Easing,
   interpolate,
 } from 'react-native-reanimated';
+// import { useScrollNavBar } from './hooks/useScrollNavBar'; // This hook is not needed
 
 interface HistoryItem {
   query: string;
@@ -47,19 +50,15 @@ const { width, height } = Dimensions.get('window');
 
 // --- IMAGE SIZE CONSTANTS ---
 const IMAGE_SIZES = {
-  // REDUCED from w342 for list items:
   THUMBNAIL: 'w154',    
-  // REDUCED from original for blurred background:
   POSTER_DETAIL: 'w780', 
-  // REDUCED from w185 for profiles:
   PROFILE: 'w154',      
   STILL: 'w300',        
-  // Kept ORIGINAL for the modal viewer:
   BLURRED_BG: 'original', 
 };
 // ----------------------------
 
-// --- SKELETON ANIMATION COMPONENTS ---
+// --- SKELETON ANIMATION COMPONENTS (No changes) ---
 const SHIMMER_WIDTH = width * 0.7; 
 
 const SkeletonShimmer = ({ children, containerStyle = {} }) => {
@@ -94,11 +93,8 @@ const SkeletonShimmer = ({ children, containerStyle = {} }) => {
   );
 };
 
-// --- SKELETON COMPONENTS ---
-
 const SkeletonHeader = () => (
     <View style={styles.skeletonHeaderContainer}>
-        {/* Title and Metadata Placeholder */}
         <View style={styles.heroContent}>
             <View style={styles.skeletonTextWrapper}>
                 <SkeletonShimmer containerStyle={[styles.skeletonLine, { width: '90%', height: 30, marginBottom: 12 }]} />
@@ -106,13 +102,11 @@ const SkeletonHeader = () => (
             <View style={styles.skeletonTextWrapper}>
                 <SkeletonShimmer containerStyle={[styles.skeletonLine, { width: '70%', height: 30, marginBottom: 12 }]} />
             </View>
-
             <View style={styles.metaRow}>
                 <View style={styles.skeletonChipWrapper}><SkeletonShimmer containerStyle={styles.skeletonChip} /></View>
                 <View style={styles.skeletonChipWrapper}><SkeletonShimmer containerStyle={styles.skeletonChip} /></View>
                 <View style={styles.skeletonChipWrapper}><SkeletonShimmer containerStyle={styles.skeletonChip} /></View>
             </View>
-            
             <View style={styles.heroActionRow}>
                 <View style={styles.skeletonHeroIconWrapper}><SkeletonShimmer containerStyle={styles.skeletonHeroIcon} /></View>
                 <View style={styles.skeletonHeroIconWrapper}><SkeletonShimmer containerStyle={styles.skeletonHeroIcon} /></View>
@@ -127,7 +121,6 @@ const SkeletonSection = ({ numItems = 6, itemWidth = width * 0.28, itemHeight = 
         <View style={styles.skeletonTextWrapper}>
             <SkeletonShimmer containerStyle={[styles.skeletonLine, { width: '40%', height: 20, marginBottom: 12 }]} />
         </View>
-        
         <FlatList
           horizontal
           data={Array(numItems).fill(0)}
@@ -143,11 +136,9 @@ const SkeletonSection = ({ numItems = 6, itemWidth = width * 0.28, itemHeight = 
                         borderRadius: isCast ? 8 : 8 
                     }]} />
                 </View>
-                
                 <View style={styles.skeletonTextWrapper}>
                     <SkeletonShimmer containerStyle={[styles.skeletonLine, { width: '80%', height: 14, marginTop: 6 }]} />
                 </View>
-                
                 <View style={styles.skeletonTextWrapper}>
                     <SkeletonShimmer containerStyle={[styles.skeletonLine, { width: '60%', height: 12, marginTop: 4 }]} />
                 </View>
@@ -159,14 +150,10 @@ const SkeletonSection = ({ numItems = 6, itemWidth = width * 0.28, itemHeight = 
 
 const SkeletonDetails = () => (
   <View style={styles.detailsContent}>
-    
-    {/* Genres section */}
     <View style={styles.sectionContainer}>
       <View style={styles.skeletonTextWrapper}>
         <SkeletonShimmer containerStyle={[styles.skeletonLine, { width: '30%', height: 20, marginBottom: 12 }]} />
       </View>
-      
-      {/* Genre chips row */}
       <View style={styles.genreScroll}>
         {[1, 2, 3, 4].map((i) => (
           <View key={i} style={styles.skeletonChipHorizontal}>
@@ -175,29 +162,21 @@ const SkeletonDetails = () => (
         ))}
       </View>
     </View>
-
-    {/* Overview section */}
     <View style={styles.sectionContainer}>
       <View style={styles.skeletonTextWrapper}>
         <SkeletonShimmer containerStyle={[styles.skeletonLine, { width: '50%', height: 20, marginBottom: 12 }]} />
       </View>
-      
-      {/* Overview text lines */}
       {[1, 2, 3].map((i) => (
         <View key={i} style={styles.skeletonTextWrapper}>
             <SkeletonShimmer containerStyle={[styles.skeletonLine, { width: i === 3 ? '80%' : '100%', height: 16, marginBottom: 8 }]} />
         </View>
       ))}
     </View>
-    
-    {/* Cast section */}
     <SkeletonSection 
         numItems={5} 
         itemWidth={width * 0.25} 
         isCast={true}
     /> 
-    
-    {/* Director section placeholder */}
     <View style={styles.sectionContainer}>
         <View style={styles.skeletonTextWrapper}>
             <SkeletonShimmer containerStyle={[styles.skeletonLine, { width: '30%', height: 20, marginBottom: 12 }]} />
@@ -213,8 +192,6 @@ const SkeletonDetails = () => (
             </View>
         </View>
     </View>
-
-    {/* Similar section */}
     <SkeletonSection 
         numItems={4} 
         itemWidth={width * 0.28} 
@@ -224,8 +201,30 @@ const SkeletonDetails = () => (
 );
 // ---------------------------------------------
 
+const SCROLL_THRESHOLD = 50;
+const SPARE_BOTTOM_SPACE = 20; // --- This is the space you want to spare ---
+
+// --- ANIMATED FOOTER COMPONENT ---
+const AnimatedFooter = () => {
+  const { tabBarVisible, tabBarHeight } = useContext(ScrollContext);
+
+  const animatedFooterStyle = useAnimatedStyle(() => {
+    return {
+      // Animate between full height and the small spare space
+      height: withTiming(tabBarVisible ? tabBarHeight : SPARE_BOTTOM_SPACE, {
+        duration: 300,
+        easing: Easing.inOut(Easing.ease),
+      }),
+    };
+  });
+
+  return <Animated.View style={animatedFooterStyle} />;
+};
+// --- END FOOTER ---
+
 
 const DetailPage = () => {
+  // ... (all existing states: movie, isInWatchlist, etc.)
   const route = useRoute();
   const navigation = useNavigation();
   const { movie } = route.params as { movie: any };
@@ -234,7 +233,7 @@ const DetailPage = () => {
   const [showFullOverview, setShowFullOverview] = useState(false);
   const [genres, setGenres] = useState([]);
   const [similarMovies, setSimilarMovies] = useState([]);
-  const [isLoading, setIsLoading] = useState(true); // <-- Set to TRUE initially
+  const [isLoading, setIsLoading] = useState(true); 
   
   const [selectedSeason, setSelectedSeason] = useState<number | null>(null);
   const [episodes, setEpisodes] = useState<TMDBEpisode[]>([]);
@@ -244,6 +243,7 @@ const DetailPage = () => {
 
   const scrollY = useRef(new RNAnimated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
+  const { setTabBarVisible, tabBarHeight } = useContext(ScrollContext);
 
   const scale = useSharedValue(1);
   const animatedBgStyle = useAnimatedStyle(() => {
@@ -251,32 +251,30 @@ const DetailPage = () => {
       transform: [{ scale: scale.value }],
     };
   });
-
-  // Scroll-based animations
+  
+  // ... (all existing hero animations: posterTranslateY, posterOpacity, etc.)
   const posterTranslateY = scrollY.interpolate({
     inputRange: [0, height * 0.3],
     outputRange: [0, -30],
     extrapolate: 'clamp',
   });
-
   const posterOpacity = scrollY.interpolate({
     inputRange: [0, height * 0.2, height * 0.35],
     outputRange: [1, 0.5, 0],
     extrapolate: 'clamp',
   });
-
   const overlayOpacity = scrollY.interpolate({
     inputRange: [0, height * 0.15, height * 0.3],
     outputRange: [0, 0.7, 1],
     extrapolate: 'clamp',
   });
-
   const overlayBorderRadius = scrollY.interpolate({
     inputRange: [0, height * 0.2],
     outputRange: [0, 32],
     extrapolate: 'clamp',
   });
-
+  
+  // ... (all existing useMemo, useEffect, and helper functions)
   const castWithCharacters: TMDBCastMember[] = useMemo(() => {
     if (!movie.cast || !Array.isArray(movie.cast)) {
       return [];
@@ -312,7 +310,7 @@ const DetailPage = () => {
       } catch (error) {
         console.error("Error loading details:", error);
       } finally {
-        setIsLoading(false); // <-- Stop loading after all async calls complete
+        setIsLoading(false); 
       }
     };
 
@@ -454,7 +452,6 @@ const DetailPage = () => {
           >
             <Image
               source={{ 
-                // --- OPTIMIZED SIZE: Use THUMBNAIL size (w154) for cast photos ---
                 uri: item.profile_path 
                   ? getImageUrl(item.profile_path, IMAGE_SIZES.THUMBNAIL)
                   : 'https://www.themoviedb.org/assets/2/v4/glyphicons/basic/glyphicons-basic-4-user-grey-d8fe957375e70239d6abdd549fd7568c89281b2179b5f4470e2e12895792dfa5.svg'
@@ -505,7 +502,6 @@ const DetailPage = () => {
               })}
             >
               <Image
-                // --- OPTIMIZED SIZE: Use THUMBNAIL size (w154) for similar cards ---
                 source={{ uri: getImageUrl(item.poster_path, IMAGE_SIZES.THUMBNAIL) }}
                 style={styles.similarImage}
               />
@@ -526,6 +522,7 @@ const DetailPage = () => {
   );
   
   const renderSeasonsSection = () => {
+    // ... (This function remains unchanged)
     if (movie.media_type !== 'tv' || !movie.seasons || movie.seasons.length === 0) {
       return null;
     }
@@ -587,7 +584,6 @@ const DetailPage = () => {
                   <View style={styles.episodeHeader}>
                     <Image 
                       source={{ 
-                        // --- OPTIMIZED SIZE: Use STILL size (w300) for episode images ---
                         uri: episode.still_path 
                           ? getImageUrl(episode.still_path, IMAGE_SIZES.STILL) 
                           : 'https://via.placeholder.com/300x169?text=No+Image'
@@ -648,12 +644,44 @@ const DetailPage = () => {
     );
   };
 
+  const lastScrollY = useRef(0);
+
+  // --- UPDATED SCROLL HANDLER ---
+  const handleScrollChange = (event: any) => {
+    const currentScrollY = event.nativeEvent.contentOffset.y;
+
+    // This handles the hero image animation
+    RNAnimated.event(
+      [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+      { useNativeDriver: false }
+    )(event);
+
+    // This handles the tab bar visibility
+    if (currentScrollY < SCROLL_THRESHOLD) {
+      setTabBarVisible(true);
+      lastScrollY.current = currentScrollY;
+      return;
+    }
+
+    const delta = currentScrollY - lastScrollY.current;
+
+    if (Math.abs(delta) > 10) {
+      if (delta > 0) {
+        setTabBarVisible(false); // Scrolling DOWN
+      } else {
+        setTabBarVisible(true); // Scrolling UP
+      }
+    }
+    
+    lastScrollY.current = currentScrollY;
+  };
+
   return (
     <View style={styles.baseContainer}>
       
+      {/* ... (Modal and Background Image) ... */}
       <View style={styles.animatedBgContainer}>
         <Animated.Image
-          // --- OPTIMIZED SIZE: Use POSTER_DETAIL (w780) for the blurred background ---
           source={{ uri: getImageUrl(movie.poster_path, IMAGE_SIZES.POSTER_DETAIL) }}
           style={[styles.blurredBackground, animatedBgStyle]}
           blurRadius={40}
@@ -675,7 +703,6 @@ const DetailPage = () => {
             <Ionicons name="close" size={28} color="#fff" />
           </TouchableOpacity>
           <Image
-            // --- FULL RESOLUTION: Use BLURRED_BG (original) for the modal image ---
             source={{ uri: getImageUrl(movie.poster_path, IMAGE_SIZES.BLURRED_BG) }}
             style={styles.modalImage}
             resizeMode="contain"
@@ -687,11 +714,13 @@ const DetailPage = () => {
         ref={scrollViewRef}
         style={styles.container} 
         showsVerticalScrollIndicator={false}
-        onScroll={RNAnimated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false }
-        )}
+        // --- REMOVED static padding ---
+        // contentContainerStyle={{ paddingBottom: tabBarHeight }}
+        
+        // --- UPDATED onScroll to handle BOTH animations ---
+        onScroll={handleScrollChange}
         scrollEventThrottle={16}
+        // Removed onMomentumScrollEnd as it's now handled in onScroll
       >
         <RNAnimated.View 
           style={[
@@ -702,12 +731,12 @@ const DetailPage = () => {
             }
           ]}
         >
+          {/* ... (Hero ImageBackground and content) ... */}
           <TouchableOpacity 
             activeOpacity={0.9} 
             onPress={() => setIsPosterModalVisible(true)}
           >
             <ImageBackground
-              // --- OPTIMIZED SIZE: Use POSTER_DETAIL (w780) for the main image background ---
               source={{ uri: getImageUrl(movie.poster_path, IMAGE_SIZES.POSTER_DETAIL) }}
               style={styles.imageBackground}
               resizeMode="cover"
@@ -733,7 +762,6 @@ const DetailPage = () => {
                   </BlurView>
                 </TouchableOpacity>
                 
-                {/* RENDER SKELETON HEADER OR REAL HEADER CONTENT */}
                 {isLoading ? (
                     <SkeletonHeader />
                 ) : (
@@ -885,11 +913,15 @@ const DetailPage = () => {
           </>
           )}
         </View>
+
+        {/* --- ADDED ANIMATED FOOTER --- */}
+        <AnimatedFooter />
       </ScrollView>
     </View>
   );
 };
 
+// Styles (No changes)
 const styles = StyleSheet.create({
   baseContainer: {
     flex: 1,
@@ -1254,24 +1286,20 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     backgroundColor: 'transparent',
     paddingTop: 40,
-    // Add a temporary background to the whole hero area to ensure the shimmer works
     backgroundColor: 'rgba(20, 20, 20, 0.5)',
   },
   skeletonShimmerContainer: {
     overflow: 'hidden',
     backgroundColor: 'transparent',
-    // The placeholder view handles the background color
   },
   skeletonShimmerGradient: {
     flex: 1,
     width: SHIMMER_WIDTH, 
   },
-  // Wrapper for text lines to control height and margin
   skeletonTextWrapper: {
     borderRadius: 4,
     overflow: 'hidden',
   },
-  // Placeholder for any rectangular content (text lines, titles)
   skeletonLine: {
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     borderRadius: 4,
@@ -1284,7 +1312,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
     marginBottom: 8,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)', // Placeholder background
+    backgroundColor: 'rgba(255, 255, 255, 0.15)', 
   },
   skeletonChip: {
     width: '100%',
@@ -1296,7 +1324,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     marginRight: 16,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)', // Placeholder background
+    backgroundColor: 'rgba(255, 255, 255, 0.15)', 
   },
   skeletonHeroIcon: {
     width: '100%',
@@ -1308,7 +1336,7 @@ const styles = StyleSheet.create({
   skeletonItemShimmer: {
     borderRadius: 8,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)', // Placeholder background
+    backgroundColor: 'rgba(255, 255, 255, 0.15)', 
     width: '100%',
     height: 'auto',
   },

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
+import { ScrollContext } from '../context/ScrollContext';
 import {
   View,
   FlatList,
@@ -15,9 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
-const CARD_WIDTH = width * 0.3; // Slightly smaller for better Netflix look
-const FEATURED_HEIGHT = height * 0.65; // Height for featured content
-
+const CARD_WIDTH = width * 0.3;
 
 const WatchListPage = () => {
   const [watchlist, setWatchlist] = useState<any[]>([]);
@@ -25,6 +24,9 @@ const WatchListPage = () => {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [isEditMode, setIsEditMode] = useState(false);
   const navigation = useNavigation();
+  const { setTabBarVisible, tabBarHeight } = useContext(ScrollContext);
+  const lastScrollY = useRef(0);
+  const SCROLL_THRESHOLD = 50;
 
   const loadWatchlist = async () => {
     try {
@@ -67,6 +69,28 @@ const WatchListPage = () => {
       setSelected(new Set());
     }
     setIsEditMode(!isEditMode);
+  };
+
+  const handleScrollChange = (event: any) => {
+    const currentScrollY = event.nativeEvent.contentOffset.y;
+
+    if (currentScrollY < SCROLL_THRESHOLD) {
+      setTabBarVisible(true);
+      lastScrollY.current = currentScrollY;
+      return;
+    }
+
+    const delta = currentScrollY - lastScrollY.current;
+
+    if (Math.abs(delta) > 10) {
+      if (delta > 0) {
+        setTabBarVisible(false);
+      } else {
+        setTabBarVisible(true);
+      }
+    }
+    
+    lastScrollY.current = currentScrollY;
   };
 
   const renderItem = ({ item }: { item: any }) => {
@@ -151,8 +175,10 @@ const WatchListPage = () => {
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderItem}
           numColumns={3}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: tabBarHeight + 20 }]}
           showsVerticalScrollIndicator={false}
+          onScroll={handleScrollChange}
+          scrollEventThrottle={16}
         />
       )}
     </View>
@@ -162,12 +188,9 @@ const WatchListPage = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 10,
-    backgroundColor: '#141414', // Netflix dark background
+    backgroundColor: '#141414',
     paddingTop: 40,
     paddingHorizontal: 10,
-    paddingBlockEnd: 60,
-
   },
   headerContainer: {
     flexDirection: 'row',
@@ -186,7 +209,7 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   editButtonText: {
-    color: '#E50914', // Netflix red
+    color: '#E50914',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -201,22 +224,23 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   listContent: {
-    paddingBottom: 16,
+    paddingHorizontal: 6,
+    paddingTop: 8,
   },
   cardWrapper: {
     margin: 3,
     marginBottom: 10,
-    width: CARD_WIDTH,
+    width: width * 0.3,
   },
   card: {
     backgroundColor: '#000',
     borderRadius: 6,
     overflow: 'hidden',
     elevation: 4,
-    height: CARD_WIDTH * 1.5, // Maintain aspect ratio
+    height: (width * 0.3) * 1.5,
   },
   cardImage: {
-    height: CARD_WIDTH * 1.5,
+    height: (width * 0.3) * 1.5,
     borderRadius: 0,
   },
   checkboxOverlay: {
