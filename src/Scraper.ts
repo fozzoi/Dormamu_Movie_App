@@ -51,7 +51,7 @@ abstract class BaseScraper {
 // YTS API scraper
 class YtsScraper extends BaseScraper {
   constructor() {
-    super('https://yts.mx', 'YTS');
+    super('https://www.yts-official.to/', 'YTS');
   }
 
   async search(query: string): Promise<TorrentResult[]> {

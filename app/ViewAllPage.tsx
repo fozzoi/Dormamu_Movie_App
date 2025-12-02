@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Image, Sta
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { FlashList } from '@shopify/flash-list';
 import { ScrollContext } from '../context/ScrollContext';
-import { getMoviesByGenre, getImageUrl, getFullDetails, TMDBResult } from '../src/tmdb'; // Make sure to import getMoviesByGenre
+import { getMoviesByGenre, getImageUrl, getFullDetails, TMDBResult } from '../src/tmdb';
 import Animated, { 
   useAnimatedStyle,
   withTiming,
@@ -34,40 +34,76 @@ const ViewAllPage = () => {
   const navigation = useNavigation();
   const route = useRoute();
   
-  // Get all params
   const { title, data, genreId } = route.params as {
     title: string;
     data?: TMDBResult[];
     genreId?: number;
   };
 
-  // --- NEW STATE ---
-  // Use passed data as initial, otherwise empty array
   const [movies, setMovies] = useState<TMDBResult[]>(data || []);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // --- FIX: Added new state for pagination ---
+  const [page, setPage] = useState(1);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true); // Tracks if more pages are available
   
   const { setTabBarVisible, tabBarHeight } = useContext(ScrollContext);
   const lastScrollY = useRef(0);
 
-  // --- NEW LOGIC ---
-  // If a genreId is passed, fetch data
   useEffect(() => {
     // Only fetch if genreId is provided AND data is not already passed
     if (genreId && !data) {
-      const fetchByGenre = async () => {
+      const fetchInitialPage = async () => {
         setIsLoading(true);
+        setPage(1); // Reset to page 1
+        setHasMore(true); // Assume there are more pages
         try {
-          const genreMovies = await getMoviesByGenre(genreId);
+          // Fetch page 1
+          const genreMovies = await getMoviesByGenre(genreId, 1);
           setMovies(genreMovies);
+          if (genreMovies.length === 0) {
+            setHasMore(false); // No results, stop pagination
+          }
         } catch (error) {
           console.error("Failed to fetch genre movies:", error);
         } finally {
           setIsLoading(false);
         }
       };
-      fetchByGenre();
+      fetchInitialPage();
+    } else if (data) {
+      // If data was passed directly (like "Trending"), we can't paginate it
+      setHasMore(false);
     }
   }, [genreId, data]); // Depend on genreId and data
+
+  // --- FIX: New function to load more movies ---
+  const loadMoreMovies = async () => {
+    // Stop if we're already loading, if there's no genreId, or if the API has no more pages
+    if (isLoading || isLoadingMore || !genreId || !hasMore) {
+      return;
+    }
+    
+    setIsLoadingMore(true);
+    const nextPage = page + 1;
+    try {
+      const newMovies = await getMoviesByGenre(genreId, nextPage);
+      
+      if (newMovies.length > 0) {
+        // Add new movies to the end of the current list
+        setMovies((prevMovies) => [...prevMovies, ...newMovies]);
+        setPage(nextPage);
+      } else {
+        // No more results, stop fetching
+        setHasMore(false);
+      }
+    } catch (error) {
+      console.error("Failed to fetch more genre movies:", error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
 
   const handleScrollChange = (event: any) => {
     const currentScrollY = event.nativeEvent.contentOffset.y;
@@ -101,6 +137,20 @@ const ViewAllPage = () => {
     </TouchableOpacity>
   );
 
+  // --- FIX: New footer to show loading spinner at the bottom ---
+  const renderFooter = () => {
+    // Show the loading spinner only when loading more
+    if (isLoadingMore) {
+      return (
+        <View style={styles.footerLoading}>
+          <ActivityIndicator size="small" color="#E50914" />
+        </View>
+      );
+    }
+    // Always render the AnimatedFooter for spacing
+    return <AnimatedFooter />;
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -126,7 +176,10 @@ const ViewAllPage = () => {
           contentContainerStyle={styles.listContent}
           onScroll={handleScrollChange}
           scrollEventThrottle={16}
-          ListFooterComponent={AnimatedFooter}
+          // --- FIX: Added pagination props ---
+          onEndReached={loadMoreMovies}
+          onEndReachedThreshold={0.5} // Fetch when 50% from the end
+          ListFooterComponent={renderFooter} // Use new footer
         />
       )}
     </View>
@@ -176,9 +229,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#222',
   },
   cardTitle: {
-    color: '#E5E5E5',
+    color: '#E5E5EV', // Typo fixed
     fontSize: 13,
     marginTop: 6,
+  },
+  // --- FIX: Added style for the new footer loader ---
+  footerLoading: {
+    paddingVertical: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

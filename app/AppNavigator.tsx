@@ -16,14 +16,12 @@ const AppNavigator = () => {
         animationDuration: 200,
         gestureEnabled: true,
         fullScreenGestureEnabled: false,
-        navigationBarHidden: false,
         keyboardHandlingEnabled: false,
       }}
     >
       <Stack.Screen name="Home" component={BottomTabNavigator} 
         options={{
           headerShown: false,
-          navigationBarTranslucent: true,
           headerTransparent: true,
         }}
       />

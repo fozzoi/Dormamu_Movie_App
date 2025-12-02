@@ -607,7 +607,7 @@ const ListDetails = ({ route, navigation }) => {
         <ScrollView 
           ref={mainScrollViewRef}
           style={styles.container}
-          contentContainerStyle={[styles.detailsScrollContent, { paddingBottom: insets.bottom + 40 }]}
+          contentContainerStyle={[styles.detailsScrollContent,]}
           showsVerticalScrollIndicator={false}
         >
           {/* List Title */}
@@ -748,7 +748,7 @@ const styles = StyleSheet.create({
   },
   detailsContent: {
     paddingHorizontal: 18, 
-    paddingBottom: 24,
+    paddingBottom: 70,
     
   },
   loadingContainer: { 
@@ -867,6 +867,7 @@ const styles = StyleSheet.create({
   similarItem: {
     width: width * 0.28,
     marginRight: 12,
+    marginBlockEnd: 82,
   },
   similarImage: {
     width: width * 0.28,

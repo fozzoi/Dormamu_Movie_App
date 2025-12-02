@@ -15,9 +15,10 @@ import {
   Platform,
   FlatList,
   ImageBackground,
+  BackHandler,
 } from 'react-native';
 import { ActivityIndicator, TextInput } from 'react-native-paper';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Animated, { 
   FadeIn, 
   FadeOut,
@@ -27,7 +28,6 @@ import Animated, {
   Easing,
   withRepeat,
   withSequence,
-  // --- useAnimatedScrollHandler is NO LONGER NEEDED ---
   interpolate,
   Extrapolate,
 } from 'react-native-reanimated';
@@ -40,10 +40,13 @@ import {
   searchTMDB,
   searchPeople,
   searchGenres,
+  getMoviesByGenre,
+  getTrendingMovies,
 } from '../src/tmdb';
 import LoadingCard from './LoadingCard';
 import { FlashList, ListRenderItemInfo } from '@shopify/flash-list';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 const HORIZONTAL_MARGIN = 16;
@@ -52,10 +55,12 @@ const HERO_CARD_WIDTH = width - (HORIZONTAL_MARGIN * 2);
 const HERO_HEIGHT = height * 0.55;
 const SCROLL_THRESHOLD = 50;
 const SPARE_BOTTOM_SPACE = 20;
+const GENRE_HISTORY_KEY = 'genre_history';
+const MAX_GENRE_HISTORY = 10;
 
 const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
 
-// --- 1. ATMOSPHERIC BACKGROUND (No changes) ---
+// --- 1. ATMOSPHERIC BACKGROUND ---
 const AtmosphericBackground = () => {
   const rotate1 = useSharedValue(0);
   const rotate2 = useSharedValue(45);
@@ -96,7 +101,7 @@ const AtmosphericBackground = () => {
   );
 };
 
-// --- 2. SKELETON LOADERS (No changes) ---
+// --- 2. SKELETON LOADERS ---
 const SkeletonHero = () => (
   <View style={[styles.heroContainer, { marginHorizontal: HORIZONTAL_MARGIN }]}>
     <View style={styles.heroLoading}>
@@ -119,7 +124,7 @@ const SkeletonGenreCarousel = () => (
   </View>
 );
 
-// --- 3. FEATURED HERO CAROUSEL (with dots OUTSIDE) ---
+// --- 3. FEATURED HERO CAROUSEL ---
 const heroDataLimit = 5;
 const FeaturedHero = memo(({ items, navigation }) => {
   const [activeIndex, setActiveIndex] = useState(0);
@@ -191,7 +196,6 @@ const FeaturedHero = memo(({ items, navigation }) => {
         />
       </View>
       
-      {/* --- PAGINATION DOTS OUTSIDE THE IMAGE --- */}
       <View style={styles.paginationContainer}>
         {items.slice(0, heroDataLimit).map((_, index) => (
           <View
@@ -207,20 +211,20 @@ const FeaturedHero = memo(({ items, navigation }) => {
   );
 });
 
-// --- 4. GENRE CAROUSEL (2-Row, Apple Music Style) ---
-const genreData = [
-  { id: 28, name: 'Action', image: 'https://image.tmdb.org/t/p/w500/nNPSBqcr7T6AhS42RltQ5ESAOIi.jpg' },
-  { id: 12, name: 'Adventure', image: 'https://image.tmdb.org/t/p/w500/A21tT0T0gKk2g92P3c2iYn3e2yV.jpg' },
-  { id: 16, name: 'Animation', image: 'https://image.tmdb.org/t/p/w500/1NqwE6LP9IEdA5RtodsvZPbJ4oP.jpg' },
-  { id: 35, name: 'Comedy', image: 'https://image.tmdb.org/t/p/w500/A1nJCFk6GB73fckwFc7uKj49sYW.jpg' },
-  { id: 80, name: 'Crime', image: 'https://image.tmdb.org/t/p/w500/gNlBvngsW2Fbu8Wki5tCGB2p91.jpg' },
-  { id: 27, name: 'Horror', image: 'https://image.tmdb.org/t/p/w500/7I6VUdPj6tQeCZdsnw5vjcS2fkm.jpg' },
-  { id: 10749, name: 'Romance', image: 'https://image.tmdb.org/t/p/w500/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg' },
-  { id: 878, name: 'Sci-Fi', image: 'https://image.tmdb.org/t/p/w500/512XxqL1E3qk2ABp2yMnaD7nK6N.jpg' },
-  { id: 53, name: 'Thriller', image: 'https://image.tmdb.org/t/p/w500/3GrRgt6CiLI8aSsPEeBfGg8Gv2L.jpg' },
-  { id: 14, name: 'Fantasy', image: 'https://image.tmdb.org/t/p/w500/d5NlIza68d8g8iAROo0sXm21QzQ.jpg' },
-  { id: 10752, name: 'War', image: 'https://image.tmdb.org/t/p/w500/8uD0Sg2Sg4Qfoh4Pz2MliKj2b00.jpg' },
-  { id: 36, name: 'History', image: 'https://image.tmdb.org/t/p/w500/A8wVMf03c0LwDo2u5lGkSjA5vks.jpg' },
+// --- NEW: Genre data with dynamic images ---
+const initialGenreData = [
+  { id: 28, name: 'Action', image: '' },
+  { id: 12, name: 'Adventure', image: '' },
+  { id: 16, name: 'Animation', image: '' },
+  { id: 35, name: 'Comedy', image: '' },
+  { id: 80, name: 'Crime', image: '' },
+  { id: 27, name: 'Horror', image: '' },
+  { id: 10749, name: 'Romance', image: '' },
+  { id: 878, name: 'Sci-Fi', image: '' },
+  { id: 53, name: 'Thriller', image: '' },
+  { id: 14, name: 'Fantasy', image: '' },
+  { id: 10752, name: 'War', image: '' },
+  { id: 36, name: 'History', image: '' },
 ];
 
 const chunk = (arr, size) =>
@@ -228,16 +232,106 @@ const chunk = (arr, size) =>
     arr.slice(i * size, i * size + size)
   );
 
+// --- 4. GENRE CAROUSEL WITH SMART ORDERING & DYNAMIC IMAGES ---
 const GenreCarousel = memo(({ navigation }) => {
-  const genrePairs = chunk(genreData, 2);
+  const [orderedGenres, setOrderedGenres] = useState(initialGenreData);
+  const [genreImages, setGenreImages] = useState<{ [key: number]: string }>({});
   const genreColumnWidth = width * 0.45;
 
-  // --- Scroll Progress Logic ---
   const scrollX = useSharedValue(0);
   const [maxScroll, setMaxScroll] = useState(1);
   const [containerWidth, setContainerWidth] = useState(1);
 
-  // --- FIX: Replaced useAnimatedScrollHandler with a plain function ---
+  // Load genre history and images on mount
+  useEffect(() => {
+    loadGenreHistory();
+    fetchGenreImages();
+  }, []);
+
+  const loadGenreHistory = async () => {
+    try {
+      const history = await AsyncStorage.getItem(GENRE_HISTORY_KEY);
+      if (history) {
+        const parsedHistory: number[] = JSON.parse(history);
+        reorderGenres(parsedHistory);
+      }
+    } catch (error) {
+      console.error('Error loading genre history:', error);
+    }
+  };
+
+  const saveGenreHistory = async (genreId: number) => {
+    try {
+      const history = await AsyncStorage.getItem(GENRE_HISTORY_KEY);
+      let parsedHistory: number[] = history ? JSON.parse(history) : [];
+      
+      // Remove if exists, add to front
+      parsedHistory = parsedHistory.filter(id => id !== genreId);
+      parsedHistory.unshift(genreId);
+      
+      // Keep only MAX_GENRE_HISTORY items
+      if (parsedHistory.length > MAX_GENRE_HISTORY) {
+        parsedHistory = parsedHistory.slice(0, MAX_GENRE_HISTORY);
+      }
+      
+      await AsyncStorage.setItem(GENRE_HISTORY_KEY, JSON.stringify(parsedHistory));
+      reorderGenres(parsedHistory);
+    } catch (error) {
+      console.error('Error saving genre history:', error);
+    }
+  };
+
+  const reorderGenres = (history: number[]) => {
+    const genreMap = new Map(initialGenreData.map(g => [g.id, g]));
+    const ordered: typeof initialGenreData = [];
+    
+    // Add genres from history first
+    history.forEach(id => {
+      const genre = genreMap.get(id);
+      if (genre) {
+        ordered.push(genre);
+        genreMap.delete(id);
+      }
+    });
+    
+    // Add remaining genres
+    genreMap.forEach(genre => ordered.push(genre));
+    
+    setOrderedGenres(ordered);
+  };
+
+  const fetchGenreImages = async () => {
+    try {
+      const images: { [key: number]: string } = {};
+      
+      // Fetch trending movies for each genre
+      await Promise.all(
+        initialGenreData.map(async (genre) => {
+          try {
+            const movies = await getMoviesByGenre(genre.id, 1);
+            if (movies.length > 0 && movies[0].poster_path) {
+              images[genre.id] = getImageUrl(movies[0].poster_path, 'w500');
+            }
+          } catch (error) {
+            console.error(`Error fetching image for genre ${genre.name}:`, error);
+          }
+        })
+      );
+      
+      setGenreImages(images);
+    } catch (error) {
+      console.error('Error fetching genre images:', error);
+    }
+  };
+
+  const handleGenrePress = async (genre: typeof initialGenreData[0]) => {
+    await saveGenreHistory(genre.id);
+    navigation.navigate('ViewAll', { 
+      title: `${genre.name} Movies`,
+      genreId: genre.id
+    });
+  };
+
   const scrollHandler = (event) => {
     scrollX.value = event.nativeEvent.contentOffset.x;
   };
@@ -253,21 +347,21 @@ const GenreCarousel = memo(({ navigation }) => {
       width: `${progress}%`,
     };
   });
-  // --- END: Scroll Progress Logic ---
 
-  const renderGenreColumn = ({ item: pair }: ListRenderItemInfo<typeof genreData>) => (
+  const genrePairs = chunk(orderedGenres, 2);
+
+  const renderGenreColumn = ({ item: pair }: ListRenderItemInfo<typeof orderedGenres>) => (
     <View style={[styles.genreColumn, { width: genreColumnWidth }]}>
       {pair.map((item) => (
         <TouchableOpacity
           key={item.id}
           style={styles.genreCard}
-          onPress={() => navigation.navigate('ViewAll', { 
-            title: `${item.name} Movies`,
-            genreId: item.id
-          })}
+          onPress={() => handleGenrePress(item)}
         >
           <ImageBackground
-            source={{ uri: item.image }}
+            source={{ 
+              uri: genreImages[item.id] || 'https://via.placeholder.com/500x750?text=No+Image'
+            }}
             style={styles.genreImage}
             resizeMode="cover"
           >
@@ -293,21 +387,13 @@ const GenreCarousel = memo(({ navigation }) => {
         horizontal
         estimatedItemSize={genreColumnWidth + 10}
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: HORIZONTAL_MARGIN }}
-        // --- FIX: Pass the plain function to onScroll ---
-        onScroll={scrollHandler}
-        onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
-        onContentSizeChange={(w, h) => setMaxScroll(Math.max(1, w - containerWidth))}
+        contentContainerStyle={{ paddingHorizontal: HORIZONTAL_MARGIN,paddingTop:10 }}
       />
-      {/* --- Progress Bar UI --- */}
-      <View style={[styles.scrollTrack, { marginHorizontal: HORIZONTAL_MARGIN }]}>
-        <Animated.View style={[styles.scrollThumb, animatedProgressStyle]} />
-      </View>
     </View>
   );
 });
 
-// --- 5. MEDIA CAROUSEL (No changes) ---
+// --- 5. MEDIA CAROUSEL ---
 const MediaCarousel = memo(({ title, data, navigation, isLoading = false }) => {
   if (isLoading) {
     return (
@@ -371,9 +457,13 @@ const MediaCarousel = memo(({ title, data, navigation, isLoading = false }) => {
   );
 });
 
-// Re-usable MovieCard (small version for carousels)
+// Re-usable MovieCard
 const MovieCard = ({ item, onPress, index = 0 }) => {
-  if (!item.poster_path) return null;
+  if (!item.poster_path) {
+    // ✅ FIX: Return a transparent, correctly-sized placeholder instead of null.
+    // This maintains the FlashList's calculated layout for the row.
+    return <View style={styles.sectionItemPlaceholder} />;
+  }
   
   return (
     <Animated.View
@@ -396,7 +486,7 @@ const MovieCard = ({ item, onPress, index = 0 }) => {
   );
 };
 
-// --- Animated Footer (No changes) ---
+// --- Animated Footer ---
 const AnimatedFooter = () => {
   const { tabBarVisible, tabBarHeight } = useContext(ScrollContext);
   const animatedFooterStyle = useAnimatedStyle(() => {
@@ -410,10 +500,8 @@ const AnimatedFooter = () => {
   return <Animated.View style={animatedFooterStyle} />;
 };
 
-
-// --- 6. THE RE-IMAGINED EXPLORE PAGE (No changes to logic) ---
+// --- 6. THE EXPLORE PAGE ---
 const ExplorePage = () => {
-  // --- Content States ---
   const [trendingMovies, setTrendingMovies] = useState([]);
   const [trendingTV, setTrendingTV] = useState([]);
   const [topRated, setTopRated] = useState([]);
@@ -421,14 +509,12 @@ const ExplorePage = () => {
   const [contentLoading, setContentLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
-  // --- Search States ---
   const [query, setQuery] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
   const [tmdbResults, setTmdbResults] = useState([]);
   const [peopleResults, setPeopleResults] = useState([]);
   const [genreResults, setGenreResults] = useState([]);
 
-  // --- Other States ---
   const [hindiMovies, setHindiMovies] = useState([]);
   const [malayalamMovies, setMalayalamMovies] = useState([]);
   const [tamilMovies, setTamilMovies] = useState([]);
@@ -447,7 +533,44 @@ const ExplorePage = () => {
   const lastScrollY = useRef(0);
   const searchTimeout = useRef(null);
 
-  // --- SCROLL HANDLER (No changes) ---
+  // --- FIX: Reset search on screen focus ---
+  useFocusEffect(
+    useCallback(() => {
+      // Reset search when navigating back to Explore
+      setQuery('');
+      setTmdbResults([]);
+      setPeopleResults([]);
+      setGenreResults([]);
+      
+      return () => {
+        // Cleanup if needed
+      };
+    }, [])
+  );
+
+  // --- FIX: Handle Android back button in search mode ---
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (query.trim() !== '') {
+          // If in search mode, go back to explore
+          setQuery('');
+          setTmdbResults([]);
+          setPeopleResults([]);
+          setGenreResults([]);
+          return true; // Prevent default back behavior
+        }
+        return false; // Let default back behavior happen
+      };
+
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+
+      return () => {
+        subscription.remove(); // Use .remove() instead of removeEventListener
+      };
+    }, [query])
+  );
+
   const handleScrollChange = (event: any) => {
     const currentScrollY = event.nativeEvent.contentOffset.y;
     if (currentScrollY < SCROLL_THRESHOLD) {
@@ -462,7 +585,6 @@ const ExplorePage = () => {
     lastScrollY.current = currentScrollY;
   };
 
-  // --- DYNAMIC "LETTER BY LETTER" SEARCH (No changes) ---
   const handleSearch = useCallback(async (searchText: string) => {
     if (!searchText.trim()) {
       setTmdbResults([]);
@@ -490,7 +612,6 @@ const ExplorePage = () => {
     }
   }, []);
 
-  // Debounce effect for search
   useEffect(() => {
     if (searchTimeout.current) {
       clearTimeout(searchTimeout.current);
@@ -506,7 +627,7 @@ const ExplorePage = () => {
     };
   }, [query, handleSearch]);
   
-  // Renders the search results list
+  // --- FIX: Proper search results rendering with correct key ---
   const renderSearchContent = () => {
     if (searchLoading && tmdbResults.length === 0 && peopleResults.length === 0 && genreResults.length === 0) { 
       return (
@@ -519,18 +640,18 @@ const ExplorePage = () => {
     const hasResults = tmdbResults.length > 0 || peopleResults.length > 0 || genreResults.length > 0;
 
     return (
-      <FlatList
-        data={hasResults ? ['people', 'genres', 'results'] : []}
-        keyExtractor={(item) => item}
-        ListEmptyComponent={() => (
-           <View style={styles.noResultsContainer}>
-             <Text style={styles.noResultsText}>No results found for "{query}"</Text>
-             <Text style={styles.noResultsSubText}>Try different keywords</Text>
-           </View>
-        )}
-        renderItem={({ item }) => {
-          if (item === 'people' && peopleResults.length > 0) {
-            return (
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.searchScrollContent}
+      >
+        {!hasResults ? (
+          <View style={styles.noResultsContainer}>
+            <Text style={styles.noResultsText}>No results found for "{query}"</Text>
+            <Text style={styles.noResultsSubText}>Try different keywords</Text>
+          </View>
+        ) : (
+          <>
+            {peopleResults.length > 0 && (
               <View style={styles.searchSection}>
                 <Text style={styles.searchHeading}>People</Text>
                 <FlatList
@@ -555,10 +676,9 @@ const ExplorePage = () => {
                   )}
                 />
               </View>
-            );
-          }
-          if (item === 'genres' && genreResults.length > 0) {
-            return (
+            )}
+            
+            {genreResults.length > 0 && (
               <View style={[styles.searchSection, { paddingHorizontal: HORIZONTAL_MARGIN }]}>
                 <Text style={styles.searchHeading}>Genres</Text>
                 <View style={styles.genreTagContainer}>
@@ -576,43 +696,38 @@ const ExplorePage = () => {
                   ))}
                 </View>
               </View>
-            );
-          }
-          if (item === 'results' && tmdbResults.length > 0) {
-            return (
+            )}
+            
+            {tmdbResults.length > 0 && (
               <View style={[styles.searchSection, { paddingHorizontal: HORIZONTAL_MARGIN }]}>
                 <Text style={styles.searchHeading}>Titles</Text>
-                <FlatList
-                  data={tmdbResults}
-                  numColumns={3}
-                  scrollEnabled={false}
-                  keyExtractor={(r) => `result-${r.id}`}
-                  renderItem={({ item: result, index }) => (
-                    <MovieCard
-                      item={result}
-                      index={index}
-                      onPress={async () => {
-                        try {
-                          const fullDetails = await getFullDetails(result);
-                          navigation.navigate('Detail', { movie: fullDetails });
-                        } catch (error) {
-                          console.error('Error:', error);
-                        }
-                      }}
-                    />
-                  )}
-                />
+                <View style={styles.searchResultsGrid}>
+                  {tmdbResults.map((result, index) => (
+                    <View key={`result-${result.id}`} style={styles.gridItemWrapper}>
+                      <MovieCard
+                        item={result}
+                        index={index}
+                        onPress={async () => {
+                          try {
+                            const fullDetails = await getFullDetails(result);
+                            navigation.navigate('Detail', { movie: fullDetails });
+                          } catch (error) {
+                            console.error('Error:', error);
+                          }
+                        }}
+                      />
+                    </View>
+                  ))}
+                </View>
               </View>
-            );
-          }
-          return null;
-        }}
-        ListFooterComponent={AnimatedFooter}
-      />
+            )}
+          </>
+        )}
+        <AnimatedFooter />
+      </ScrollView>
     );
   };
   
-  // --- CONTENT FETCHING (No changes) ---
   const fetchDiscoveryContent = useCallback(async () => {
     setContentLoading(true);
     try {
@@ -657,14 +772,13 @@ const ExplorePage = () => {
       <StatusBar translucent backgroundColor="transparent" />
       <AtmosphericBackground />
       
-      {/* --- SEARCH BAR (DYNAMIC) --- */}
       <View style={styles.searchBarContainer}>
         <View style={styles.searchInputContainer}>
           <TextInput
             textColor='white'
-            placeholder="Search TMDB for movies, TV shows..."
+            placeholder="Search for movies, TV shows..."
             value={query}
-            onChangeText={setQuery} // This triggers the debounced search
+            onChangeText={setQuery}
             underlineColor='transparent'
             activeUnderlineColor='transparent'
             cursorColor='#E50914'
@@ -689,11 +803,9 @@ const ExplorePage = () => {
         </View>
       </View>
 
-      {/* --- CONDITIONAL CONTENT --- */}
       {inSearchMode ? (
         renderSearchContent()
       ) : (
-        // Show discovery content
         <AnimatedScrollView
           onScroll={handleScrollChange}
           scrollEventThrottle={16}
@@ -704,334 +816,340 @@ const ExplorePage = () => {
               refreshing={refreshing} 
               onRefresh={onRefresh}
               tintColor="#E50914"
-              progressViewOffset={50}
-            />
-          }
-        >
-          {contentLoading ? (
-            <>
-              <SkeletonHero />
-              <SkeletonGenreCarousel />
-            </>
-          ) : (
-            <>
+              progress
+              ViewOffset={50}/>
+              }>
+                {contentLoading ? (<>
+                <SkeletonHero />
+                <SkeletonGenreCarousel />
+                </>) : (
+                  <>
               <FeaturedHero items={trendingMovies} navigation={navigation} />
               <GenreCarousel navigation={navigation} />
-            </>
-          )}
-          
-          <MediaCarousel title="Trending TV Shows" data={trendingTV} navigation={navigation} isLoading={contentLoading} />
-          <MediaCarousel title="Top Rated Movies" data={topRated} navigation={navigation} isLoading={contentLoading} />
-          <MediaCarousel title="Popular in Your Region" data={regional} navigation={navigation} isLoading={contentLoading} />
-          <MediaCarousel title="Animated Movies" data={animatedMovies} navigation={navigation} isLoading={contentLoading} />
-          <MediaCarousel title="Anime Series" data={animeShows} navigation={navigation} isLoading={contentLoading} />
-          <MediaCarousel title="Anime Movies" data={animeMovies} navigation={navigation} isLoading={contentLoading} />
-          <MediaCarousel title="Korean TV Shows" data={koreanTV} navigation={navigation} isLoading={contentLoading} />
-          <MediaCarousel title="Korean Movies" data={koreanMovies} navigation={navigation} isLoading={contentLoading} />
-          <MediaCarousel title="Japanese TV Shows" data={japaneseTV} navigation={navigation} isLoading={contentLoading} />
-          <MediaCarousel title="Japanese Movies" data={japaneseMovies} navigation={navigation} isLoading={contentLoading} />
-          <MediaCarousel title="Hindi Movies" data={hindiMovies} navigation={navigation} isLoading={contentLoading} />
-          <MediaCarousel title="Hindi Web Series" data={hindiTV} navigation={navigation} isLoading={contentLoading} />
-          <MediaCarousel title="Malayalam Movies" data={malayalamMovies} navigation={navigation} isLoading={contentLoading} />
-          <MediaCarousel title="Malayalam Web Series" data={malayalamTV} navigation={navigation} isLoading={contentLoading} />
-          <MediaCarousel title="Tamil Movies" data={tamilMovies} navigation={navigation} isLoading={contentLoading} />
-          
-          <AnimatedFooter />
-        </AnimatedScrollView>
-      )}
-    </View>
-  );
+              </>
+        )}
+      <MediaCarousel title="Trending TV Shows" data={trendingTV} navigation={navigation} isLoading={contentLoading} />
+      <MediaCarousel title="Top Rated Movies" data={topRated} navigation={navigation} isLoading={contentLoading} />
+      <MediaCarousel title="Popular in Your Region" data={regional} navigation={navigation} isLoading={contentLoading} />
+      <MediaCarousel title="Animated Movies" data={animatedMovies} navigation={navigation} isLoading={contentLoading} />
+      <MediaCarousel title="Anime Series" data={animeShows} navigation={navigation} isLoading={contentLoading} />
+      <MediaCarousel title="Anime Movies" data={animeMovies} navigation={navigation} isLoading={contentLoading} />
+      <MediaCarousel title="Korean TV Shows" data={koreanTV} navigation={navigation} isLoading={contentLoading} />
+      <MediaCarousel title="Korean Movies" data={koreanMovies} navigation={navigation} isLoading={contentLoading} />
+      <MediaCarousel title="Japanese TV Shows" data={japaneseTV} navigation={navigation} isLoading={contentLoading} />
+      <MediaCarousel title="Japanese Movies" data={japaneseMovies} navigation={navigation} isLoading={contentLoading} />
+      <MediaCarousel title="Hindi Movies" data={hindiMovies} navigation={navigation} isLoading={contentLoading} />
+      <MediaCarousel title="Hindi Web Series" data={hindiTV} navigation={navigation} isLoading={contentLoading} />
+      <MediaCarousel title="Malayalam Movies" data={malayalamMovies} navigation={navigation} isLoading={contentLoading} />
+      <MediaCarousel title="Malayalam Web Series" data={malayalamTV} navigation={navigation} isLoading={contentLoading} />
+      <MediaCarousel title="Tamil Movies" data={tamilMovies} navigation={navigation} isLoading={contentLoading} />
+      
+      <AnimatedFooter />
+    </AnimatedScrollView>
+  )}
+</View>
+);
 };
-
-// --- STYLES (Heavily updated) ---
+// --- STYLES ---
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#141414',
-  },
-  scrollContent: {
-    paddingTop: 10,
-  },
-  // --- Atmospheric BG ---
-  atmosContainer: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: -1,
-    backgroundColor: '#141414',
-    overflow: 'hidden',
-  },
-  atmosGradientWrapper: {
-    position: 'absolute',
-    width: width * 2,
-    height: width * 2,
-    left: -width / 2,
-    top: -width / 2,
-  },
-  atmosGradient: {
-    width: '100%',
-    height: '100%',
-    opacity: 0.3,
-  },
-  // --- Search Bar ---
-  searchBarContainer: {
-    paddingHorizontal: HORIZONTAL_MARGIN,
-    paddingTop: (StatusBar.currentHeight || 0) + 10,
-    paddingBottom: 10,
-    backgroundColor: 'rgba(20, 20, 20, 0.8)',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  searchInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#333333',
-    borderRadius: 8,
-    height: 45,
-  },
-  searchInput: {
-    flex: 1,
-    backgroundColor: 'transparent',
-    height: 45,
-    fontSize: 16,
-    color: 'white',
-    paddingLeft: 12,
-  },
-  searchIconContainer: {
-    paddingHorizontal: 12,
-    width: 45,
-    alignItems: 'center',
-  },
-  // --- Hero ---
-  heroContainer: {
-    width: HERO_CARD_WIDTH,
-    height: HERO_HEIGHT,
-    backgroundColor: '#222',
-    borderRadius: 12,
-    overflow: 'hidden',
-    alignSelf: 'center',
-    marginBottom: 10,
-  },
-  heroLoading: {
-    height: HERO_HEIGHT,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#222',
-    borderRadius: 12,
-  },
-  heroItemContainer: {
-    width: HERO_CARD_WIDTH,
-    height: HERO_HEIGHT,
-  },
-  heroImage: {
-    width: '100%',
-    height: '100%',
-  },
-  heroGradient: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: '40%',
-    justifyContent: 'flex-end',
-    padding: 16,
-  },
-  heroTitle: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  heroMeta: {
-    color: '#E5E5E5',
-    fontSize: 16,
-  },
-  // --- PAGINATION DOTS (NOW OUTSIDE) ---
-  paginationContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  paginationDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
-    marginHorizontal: 4,
-  },
-  paginationDotActive: {
-    backgroundColor: '#FFFFFF',
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  // --- Genre Carousel (2-Row) ---
-  genreColumn: {
-    marginLeft: 10, // Spacing between columns
-  },
-  genreCard: {
-    width: width * 0.45,
-    height: 80,
-    borderRadius: 8,
-    overflow: 'hidden',
-    marginBottom: 10,
-    elevation: 3,
-  },
-  genreImage: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'flex-end',
-  },
-  genreGradient: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    paddingBottom: 8,
-  },
-  genreName: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-    textShadowColor: 'rgba(0, 0, 0, 0.7)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
-  },
-  // --- Media Carousel ---
-  sectionContainer: {
-    marginTop: 24,
-    paddingBottom: 10,
-    // Horizontal padding is applied to title and list content separately
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: HORIZONTAL_MARGIN,
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  viewAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  viewAllText: {
-    color: '#AAAAAA',
-    fontSize: 14,
-  },
-  sectionItem: {
-    width: CARD_WIDTH,
-    marginLeft: 10, // Spacing between cards
-  },
-  sectionImage: {
-    width: CARD_WIDTH,
-    height: CARD_WIDTH * 1.5,
-    borderRadius: 8,
-    backgroundColor: '#222',
-  },
-  sectionItemTitle: {
-    color: '#E5E5E5',
-    fontSize: 13,
-    marginTop: 6,
-  },
-  // --- Skeletons ---
-  skeletonCard: {
-    backgroundColor: '#222',
-  },
-  skeletonTitle: {
-    backgroundColor: '#222',
-    height: 20,
-    borderRadius: 4,
-    marginBottom: 12,
-  },
-  genreRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  // --- Search Results ---
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 30,
-    height: height * 0.5,
-  },
-  noResultsContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-    height: height * 0.5,
-  },
-  noResultsText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    marginBottom: 8
-  },
-  noResultsSubText: {
-    color: '#8C8C8C',
-    fontSize: 14
-  },
-  searchSection: {
-    paddingVertical: 10,
-  },
-  searchHeading: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginVertical: 16,
-    paddingHorizontal: HORIZONTAL_MARGIN,
-  },
-  personItem: {
-    width: 100,
-    marginRight: 12,
-    alignItems: 'center',
-  },
-  personImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    marginBottom: 8,
-    backgroundColor: '#222',
-  },
-  personName: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    textAlign: 'center',
-    width: 90,
-  },
-  genreTagContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  genreTag: {
-    backgroundColor: '#333',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  genreTagName: {
-    color: '#FFFFFF',
-    fontSize: 14,
-  },
-  // --- ADDED: Progress Bar Styles ---
-  scrollTrack: {
-    height: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 2,
-    marginTop: 10,
-  },
-  scrollThumb: {
-    height: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    borderRadius: 2,
-  },
+container: {
+flex: 1,
+backgroundColor: '#141414',
+},
+scrollContent: {
+paddingTop: 10,
+},
+searchScrollContent: {
+paddingTop: 10,
+paddingBottom: 100,
+},
+atmosContainer: {
+...StyleSheet.absoluteFillObject,
+zIndex: -1,
+backgroundColor: '#141414',
+overflow: 'hidden',
+},
+atmosGradientWrapper: {
+position: 'absolute',
+width: width * 2,
+height: width * 2,
+left: -width / 2,
+top: -width / 2,
+},
+atmosGradient: {
+width: '100%',
+height: '100%',
+opacity: 0.3,
+},
+searchBarContainer: {
+paddingHorizontal: HORIZONTAL_MARGIN,
+paddingTop: (StatusBar.currentHeight || 0) + 10,
+paddingBottom: 10,
+backgroundColor: 'rgba(20, 20, 20, 0.8)',
+borderBottomWidth: 1,
+borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+},
+searchInputContainer: {
+flexDirection: 'row',
+alignItems: 'center',
+backgroundColor: '#333333',
+borderRadius: 8,
+height: 45,
+},
+searchInput: {
+flex: 1,
+backgroundColor: 'transparent',
+height: 45,
+fontSize: 16,
+color: 'white',
+paddingLeft: 12,
+},
+searchIconContainer: {
+paddingHorizontal: 12,
+width: 45,
+alignItems: 'center',
+},
+heroContainer: {
+width: HERO_CARD_WIDTH,
+height: HERO_HEIGHT,
+backgroundColor: '#222',
+borderRadius: 12,
+overflow: 'hidden',
+alignSelf: 'center',
+marginBottom: 10,
+},
+// ... inside STYLES
+sectionItemPlaceholder: {
+  width: CARD_WIDTH,
+  height: CARD_WIDTH * 1.5 + 13, // CARD_WIDTH * 1.5 (Image Height) + 6 (marginTop) + ~7 (Text Height)
+  marginLeft: 10,
+  // Ensure it's invisible but takes up space
+  backgroundColor: 'transparent',
+},
+// ...
+heroLoading: {
+height: HERO_HEIGHT,
+justifyContent: 'center',
+alignItems: 'center',
+backgroundColor: '#222',
+borderRadius: 12,
+},
+heroItemContainer: {
+width: HERO_CARD_WIDTH,
+height: HERO_HEIGHT,
+},
+heroImage: {
+width: '100%',
+height: '100%',
+},
+heroGradient: {
+position: 'absolute',
+bottom: 0,
+left: 0,
+right: 0,
+height: '40%',
+justifyContent: 'flex-end',
+padding: 16,
+},
+heroTitle: {
+color: '#FFFFFF',
+fontSize: 28,
+fontWeight: 'bold',
+marginBottom: 4,
+},
+heroMeta: {
+color: '#E5E5E5',
+fontSize: 16,
+},
+paginationContainer: {
+flexDirection: 'row',
+justifyContent: 'center',
+alignItems: 'center',
+paddingVertical: 12,
+},
+paginationDot: {
+width: 8,
+height: 8,
+borderRadius: 4,
+backgroundColor: 'rgba(255, 255, 255, 0.5)',
+marginHorizontal: 4,
+},
+paginationDotActive: {
+backgroundColor: '#FFFFFF',
+width: 10,
+height: 10,
+borderRadius: 5,
+},
+genreColumn: {
+marginLeft: 10,
+},
+genreCard: {
+width: width * 0.45,
+height: 80,
+borderRadius: 8,
+overflow: 'hidden',
+marginBottom: 10,
+elevation: 3,
+},
+genreImage: {
+width: '100%',
+height: '100%',
+justifyContent: 'flex-end',
+},
+genreGradient: {
+width: '100%',
+height: '100%',
+justifyContent: 'flex-end',
+alignItems: 'center',
+paddingBottom: 8,
+},
+genreName: {
+color: '#FFFFFF',
+fontSize: 18,
+fontWeight: 'bold',
+textShadowColor: 'rgba(0, 0, 0, 0.7)',
+textShadowOffset: { width: 1, height: 1 },
+textShadowRadius: 3,
+},
+sectionContainer: {
+// marginTop: 24,
+paddingBottom: 10,
+},
+sectionHeader: {
+flexDirection: 'row',
+justifyContent: 'space-between',
+alignItems: 'center',
+paddingHorizontal: HORIZONTAL_MARGIN,
+marginBottom: 12,
+},
+sectionTitle: {
+color: '#FFFFFF',
+fontSize: 20,
+fontWeight: 'bold',
+},
+viewAllButton: {
+flexDirection: 'row',
+alignItems: 'center',
+},
+viewAllText: {
+color: '#AAAAAA',
+fontSize: 14,
+},
+sectionItem: {
+width: CARD_WIDTH,
+marginLeft: 10,
+},
+sectionImage: {
+width: CARD_WIDTH,
+height: CARD_WIDTH * 1.5,
+borderRadius: 8,
+backgroundColor: '#222',
+},
+sectionItemTitle: {
+color: '#E5E5E5',
+fontSize: 13,
+marginTop: 6,
+},
+skeletonCard: {
+backgroundColor: '#222',
+},
+skeletonTitle: {
+backgroundColor: '#222',
+height: 20,
+borderRadius: 4,
+marginBottom: 12,
+},
+genreRow: {
+flexDirection: 'row',
+justifyContent: 'space-between',
+marginBottom: 10,
+},
+loadingContainer: {
+flex: 1,
+justifyContent: 'center',
+alignItems: 'center',
+padding: 30,
+height: height * 0.5,
+},
+noResultsContainer: {
+flex: 1,
+justifyContent: 'center',
+alignItems: 'center',
+padding: 20,
+minHeight: height * 0.5,
+},
+noResultsText: {
+color: '#FFFFFF',
+fontSize: 18,
+marginBottom: 8
+},
+noResultsSubText: {
+color: '#8C8C8C',
+fontSize: 14
+},
+searchSection: {
+paddingVertical: 10,
+},
+searchHeading: {
+color: '#FFFFFF',
+fontSize: 20,
+fontWeight: 'bold',
+marginVertical: 16,
+paddingHorizontal: HORIZONTAL_MARGIN,
+},
+personItem: {
+width: 100,
+marginRight: 12,
+alignItems: 'center',
+},
+personImage: {
+width: 80,
+height: 80,
+borderRadius: 40,
+marginBottom: 8,
+backgroundColor: '#222',
+},
+personName: {
+color: '#FFFFFF',
+fontSize: 12,
+textAlign: 'center',
+width: 90,
+},
+genreTagContainer: {
+flexDirection: 'row',
+flexWrap: 'wrap',
+},
+genreTag: {
+backgroundColor: '#333',
+paddingHorizontal: 16,
+paddingVertical: 8,
+borderRadius: 20,
+marginRight: 8,
+marginBottom: 8,
+},
+genreTagName: {
+color: '#FFFFFF',
+fontSize: 14,
+},
+searchResultsGrid: {
+flexDirection: 'row',
+flexWrap: 'wrap',
+justifyContent: 'flex-start',
+},
+gridItemWrapper: {
+width: CARD_WIDTH,
+marginBottom: 10,
+},
+scrollTrack: {
+height: 3,
+backgroundColor: 'rgba(255, 255, 255, 0.2)',
+borderRadius: 2,
+marginTop: 10,
+},
+scrollThumb: {
+height: 3,
+backgroundColor: 'rgba(255, 255, 255, 0.8)',
+borderRadius: 2,
+},
 });
-
 export default ExplorePage;

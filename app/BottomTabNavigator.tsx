@@ -4,8 +4,6 @@ import { createBottomTabNavigator, BottomTabBarProps } from '@react-navigation/b
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform, Dimensions, View, StyleSheet, TouchableOpacity } from 'react-native';
-import { getFocusedRouteNameFromState } from '@react-navigation/native';
-
 // Reanimated imports
 import Animated, {
   useSharedValue,
@@ -50,6 +48,8 @@ const ScrollContext = createContext<ScrollContextProps>({
 });
 
 // --- STACK OPTIONS ---
+const SCREEN_WIDTH = Dimensions.get('window').width;
+
 const stackScreenOptions = {
     headerShown: false,
     cardStyle: { backgroundColor: '#000' },
@@ -64,13 +64,35 @@ const stackScreenOptions = {
     freezeOnBlur: true,
     detachPreviousScreen: false,
     cardOverlayEnabled: true,
-    cardStyleInterpolator: ({ current: { progress } }) => ({
-        cardStyle: { opacity: progress, },
-        overlayStyle: {
-            backgroundColor: '#000',
-            opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [0, 0.5], }),
-        },
-    }),
+    // Fade + slide in from right smoothly
+    cardStyleInterpolator: ({ current, layouts }) => {
+        const width = layouts?.screen?.width ?? SCREEN_WIDTH;
+        const progress = current.progress;
+
+        const translateX = progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [width * 0.25, 0], // start a bit from the right for a subtle slide
+        });
+
+        const opacity = progress.interpolate({
+            inputRange: [0, 0.5, 1],
+            outputRange: [0, 0.6, 1],
+        });
+
+        return {
+            cardStyle: {
+                transform: [{ translateX }],
+                opacity,
+            },
+            overlayStyle: {
+                backgroundColor: '#000',
+                opacity: progress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, 0.5],
+                }),
+            },
+        };
+    },
 };
 
 // --- STACK NAVIGATORS ---
