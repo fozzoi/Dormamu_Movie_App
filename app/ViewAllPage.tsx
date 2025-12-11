@@ -208,6 +208,7 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 20,
     fontWeight: 'bold',
+    fontFamily: 'GoogleSansFlex-Bold',
   },
   loadingContainer: {
     flex: 1,
@@ -231,6 +232,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     color: '#E5E5EV', // Typo fixed
     fontSize: 13,
+    fontFamily: 'GoogleSansFlex-Regular',
     marginTop: 6,
   },
   // --- FIX: Added style for the new footer loader ---

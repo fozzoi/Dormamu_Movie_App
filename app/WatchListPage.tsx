@@ -204,6 +204,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 28,
     fontWeight: 'bold',
+    fontFamily: 'GoogleSansFlex-Bold',
   },
   editButton: {
     padding: 8,
@@ -212,6 +213,7 @@ const styles = StyleSheet.create({
     color: '#E50914',
     fontSize: 16,
     fontWeight: '600',
+    fontFamily: 'GoogleSansFlex-Medium',
   },
   clearButton: {
     marginBottom: 16,
@@ -222,6 +224,7 @@ const styles = StyleSheet.create({
   clearButtonLabel: {
     fontSize: 16,
     fontWeight: 'bold',
+    fontFamily: 'GoogleSansFlex-Bold',
   },
   listContent: {
     paddingHorizontal: 6,
@@ -276,12 +279,14 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: 'bold',
+    fontFamily: 'GoogleSansFlex-Bold',
     marginBottom: 2,
   },
   cardRating: {
     color: '#E50914',
     fontSize: 12,
     fontWeight: '500',
+    fontFamily: 'GoogleSansFlex-Medium',
   },
   loadingContainer: {
     flex: 1,
@@ -298,12 +303,14 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 22,
     fontWeight: 'bold',
+    fontFamily: 'GoogleSansFlex-Bold',
     marginTop: 20,
     marginBottom: 8,
   },
   emptySubtext: {
     color: '#aaa',
     fontSize: 16,
+    fontFamily: 'GoogleSansFlex-Regular',
     textAlign: 'center',
   },
 });

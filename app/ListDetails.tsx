@@ -689,6 +689,7 @@ const styles = StyleSheet.create({
   listTitle: {
     fontSize: 20, 
     fontWeight: 'bold',
+    fontFamily: 'GoogleSansFlex-Bold',
     color: '#fff',
     marginBottom: 8,
     zIndex: 3,
@@ -723,6 +724,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginTop: 6,
     fontWeight: '600',
+    fontFamily: 'GoogleSansFlex-Medium',
   },
   ratingRow: {
     flexDirection: 'row',
@@ -734,6 +736,7 @@ const styles = StyleSheet.create({
     color: '#ccc',
     marginLeft: 4,
     fontWeight: '500',
+    fontFamily: 'GoogleSansFlex-Medium',
   },
   detailsScrollContent: {
     // paddingBottom set dynamically
@@ -760,6 +763,7 @@ const styles = StyleSheet.create({
   loadingText: { 
     color: '#aaa',
     fontSize: 16,
+    fontFamily: 'GoogleSansFlex-Regular',
     marginTop: 12,
   },
   headerContainer: {
@@ -785,6 +789,7 @@ const styles = StyleSheet.create({
   movieTitle: {
     fontSize: 22,
     fontWeight: 'bold',
+    fontFamily: 'GoogleSansFlex-Bold',
     color: '#fff',
     flexWrap: 'wrap',
     lineHeight: 28,
@@ -812,6 +817,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginLeft: 4,
     fontWeight: '600',
+    fontFamily: 'GoogleSansFlex-Medium',
   },
   heroActionRow: {
     flexDirection: 'row',
@@ -835,12 +841,14 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 19,
     fontWeight: 'bold',
+    fontFamily: 'GoogleSansFlex-Bold',
     color: '#fff',
     marginBottom: 12,
   },
   overviewText: {
     fontSize: 15,
     color: '#ddd',
+    fontFamily: 'GoogleSansFlex-Regular',
     lineHeight: 22,
   },
   castItem: {
@@ -857,11 +865,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#fff',
     fontWeight: '600',
+    fontFamily: 'GoogleSansFlex-Medium',
     marginTop: 6,
   },
   characterName: {
     fontSize: 12,
     color: '#aaa',
+    fontFamily: 'GoogleSansFlex-Regular',
     marginTop: 2,
   },
   similarItem: {
@@ -879,6 +889,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#fff',
     fontWeight: '600',
+    fontFamily: 'GoogleSansFlex-Medium',
     marginTop: 6,
   },
   sectionHeader: {
@@ -890,12 +901,14 @@ const styles = StyleSheet.create({
   noSimilarText: {
     color: '#888',
     fontSize: 14,
+    fontFamily: 'GoogleSansFlex-Regular',
     textAlign: 'center',
     padding: 20,
   },
   viewAll: {
     color: '#E50914',
     fontWeight: '700',
+    fontFamily: 'GoogleSansFlex-Bold',
     fontSize: 15,
   },
   seasonTabsContainer: {
@@ -919,10 +932,12 @@ const styles = StyleSheet.create({
     color: '#ccc',
     fontSize: 14,
     fontWeight: '600',
+    fontFamily: 'GoogleSansFlex-Medium',
   },
   seasonTabTextActive: {
     color: '#fff',
     fontWeight: '700',
+    fontFamily: 'GoogleSansFlex-Bold',
   },
   episodesContainer: {
     marginTop: 16,
@@ -950,11 +965,13 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: 'bold',
+    fontFamily: 'GoogleSansFlex-Bold',
     marginBottom: 4,
   },
   episodeOverview: {
     color: '#bbb',
     fontSize: 12,
+    fontFamily: 'GoogleSansFlex-Regular',
     lineHeight: 16,
   },
   directorContainer: {
@@ -971,6 +988,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#fff',
     fontWeight: '600',
+    fontFamily: 'GoogleSansFlex-Medium',
   },
 
   // --- SKELETON SPECIFIC STYLES ---

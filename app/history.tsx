@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 28,
     fontWeight: "bold",
-    fontFamily: "System",
+    fontFamily: "GoogleSansFlex-Bold",
     letterSpacing: 0.3,
   },
   clearButtonContainer: {
@@ -277,6 +277,7 @@ const styles = StyleSheet.create({
   clearButton: {
     color: "#E50914", // Netflix red
     fontWeight: "600",
+    fontFamily: 'GoogleSansFlex-Medium',
   },
   groupContainer: {
     marginBottom: 28,
@@ -285,6 +286,7 @@ const styles = StyleSheet.create({
     color: "#E5E5E5", // Light gray
     fontSize: 20,
     fontWeight: "600",
+    fontFamily: 'GoogleSansFlex-Medium',
     marginBottom: 12,
     letterSpacing: 0.2,
   },
@@ -317,11 +319,13 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
     fontWeight: "500",
+    fontFamily: 'GoogleSansFlex-Medium',
     marginBottom: 4,
   },
   dateText: {
     color: "#B3B3B3", // Netflix light gray text
     fontSize: 12,
+    fontFamily: 'GoogleSansFlex-Regular',
   },
   deleteButton: {
     position: "absolute",
@@ -337,6 +341,7 @@ const styles = StyleSheet.create({
   deleteButtonText: {
     color: "white",
     fontWeight: "600",
+    fontFamily: 'GoogleSansFlex-Medium',
     fontSize: 16,
   },
   emptyContainer: {
@@ -349,12 +354,14 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 18,
     fontWeight: "600",
+    fontFamily: 'GoogleSansFlex-Bold',
   },
   emptySubText: {
     color: "#999999",
     textAlign: "center",
     marginTop: 8,
     fontSize: 14,
+    fontFamily: 'GoogleSansFlex-Regular',
   },
   modalOverlay: {
     flex: 1,
@@ -373,11 +380,13 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
+    fontFamily: 'GoogleSansFlex-Bold',
     marginBottom: 10,
   },
   modalMessage: {
     color: '#B3B3B3',
     fontSize: 16,
+    fontFamily: 'GoogleSansFlex-Regular',
     marginBottom: 20,
     textAlign: 'center',
   },
@@ -395,6 +404,7 @@ const styles = StyleSheet.create({
     color: 'white',
     textAlign: 'center',
     fontSize: 16,
+    fontFamily: 'GoogleSansFlex-Regular',
   },
   modalButtonDanger: {
     backgroundColor: '#E50914',

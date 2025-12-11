@@ -768,6 +768,7 @@ const styles = StyleSheet.create({
   heading: {
     fontSize: 35,
     fontWeight: "bold",
+    fontFamily: 'GoogleSansFlex-Bold',
     textAlign: "center",
     marginBottom: 50,
     marginTop: 250,
@@ -780,6 +781,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'black',
     color: 'white',
     fontSize: 16,
+    fontFamily: 'GoogleSansFlex-Regular',
     width: '100%',
     paddingRight: 40,
     height: 40,
@@ -846,6 +848,7 @@ const styles = StyleSheet.create({
   },
   qualityText: {
     fontWeight: 'bold',
+    fontFamily: 'GoogleSansFlex-Medium',
   },
   typeContainer: {
     marginBottom: 16,
@@ -864,6 +867,7 @@ const styles = StyleSheet.create({
   episodesTitle: {
     fontSize: 16,
     fontWeight: 'bold',
+    fontFamily: 'GoogleSansFlex-Bold',
     marginBottom: 8,
   },
   episodeRow: {
@@ -886,6 +890,7 @@ const styles = StyleSheet.create({
   seasonTitle: {
     fontSize: 18,
     fontWeight: 'bold',
+    fontFamily: 'GoogleSansFlex-Bold',
     marginBottom: 8,
     color: '#fff',
   },
@@ -902,6 +907,7 @@ const styles = StyleSheet.create({
   },
   episodeCount: {
     fontWeight: '500',
+    fontFamily: 'GoogleSansFlex-Medium',
     color: '#ccc',
   },
   actionButton: {

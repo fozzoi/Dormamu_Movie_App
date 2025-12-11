@@ -82,6 +82,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
+    fontFamily: 'GoogleSansFlex-Bold',
     padding: 16,
     color: '#fff',
   },
@@ -100,6 +101,7 @@ const styles = StyleSheet.create({
   episodeTitle: {
     color: '#fff',
     fontSize: 16,
+    fontFamily: 'GoogleSansFlex-Regular',
   },
   qualityButtons: {
     flexDirection: 'row',
