@@ -11,6 +11,7 @@ import Animated, {
   withTiming,
   Easing,
 } from 'react-native-reanimated';
+import { BlurView } from 'expo-blur';
 
 // Import your existing tab screens
 import History from '../app/history';
@@ -53,14 +54,14 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const stackScreenOptions = {
     headerShown: false,
     cardStyle: { backgroundColor: '#000' },
-    animation: 'fade',
+    animation: 'slide_from_right',
     fullScreenGestureEnabled: true,
     keyboardHandlingEnabled: true,
     presentation: 'card',
     animationEnabled: true,
     gestureDirection: 'horizontal',
     contentStyle: { backgroundColor: '#000' },
-    animationDuration: 200,
+    // animationDuration: 222000,
     freezeOnBlur: true,
     detachPreviousScreen: false,
     cardOverlayEnabled: true,
@@ -154,8 +155,16 @@ const CustomTabBar: React.FC<BottomTabBarProps> = (props) => {
 
   return (
     <Animated.View style={[localStyles.container, animatedStyle]}>
-        {/* Background View (Gray) */}
-        <View style={localStyles.backgroundView} />
+        {/* Blur Background */}
+        <BlurView 
+          intensity={60}
+          tint='dark'
+          experimentalBlurMethod="dimezisBlurView"
+          style={{
+            ...StyleSheet.absoluteFillObject,
+            borderRadius: 40,
+          }}
+        />
         
         {/* Icons Container */}
         <View style={localStyles.tabBarInner}>
@@ -209,18 +218,13 @@ const localStyles = StyleSheet.create({
         right: 50,
         height: TAB_BAR_HEIGHT,
         borderRadius: 40, // Pill shape
-        elevation: 5,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
         justifyContent: 'center', // Centers the inner view vertically
-    },
-    backgroundView: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: '#000000ff', // Dark Gray
-        opacity: 0.95, // Slight transparency
-        borderRadius: 40,
+        overflow: 'hidden',
+        borderColor: 'rgba(255, 255, 255, 0.3)',
+        borderLeftWidth: 0.5,
+        borderTopWidth: 0.5,
+        borderRightWidth: 0.5,
+        borderBottomWidth: 0.5,
     },
     tabBarInner: {
         flexDirection: 'row',
@@ -267,9 +271,8 @@ const RootTabNavigator = () => {
                     },
                     headerShown: false,
                     tabBarShowLabel: false, 
-                    tabBarHideOnKeyboard: false, 
-                })}
-            >
+                    tabBarHideOnKeyboard: false,
+                })}>
                 <Tab.Screen name="Explore" component={ExploreStack} />
                 <Tab.Screen name="Watchlist" component={WatchlistStack} />
                 <Tab.Screen name="Search" component={SearchStack} />

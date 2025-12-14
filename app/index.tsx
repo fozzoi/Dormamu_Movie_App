@@ -1,34 +1,25 @@
-// index.tsx
-import React, { useState, useRef, useContext } from "react";
+import React, { useState, useRef, useContext, useEffect } from "react";
 import { ScrollContext } from '../context/ScrollContext';
-import { View, StyleSheet, Alert, Linking, useColorScheme, StatusBar, ScrollView, Platform, TouchableOpacity } from "react-native";
+import { View, StyleSheet, Alert, Linking, useColorScheme, StatusBar, ScrollView, Platform, TouchableOpacity, Share } from "react-native";
 import { Provider as PaperProvider, TextInput, Button, Card, Text, ActivityIndicator, MD3DarkTheme, MD3LightTheme, Chip } from "react-native-paper";
 import axios from "axios";
 import * as FileSystem from "expo-file-system";
-import * as IntentLauncher from "expo-intent-launcher";
-import ErrorBoundary from "./ErrorBoundary";
-import { useNavigation } from "expo-router";
-import { useRouter, Link } from 'expo-router';
+import * as IntentLauncher from "expo-intent-launcher"; 
+import * as Sharing from "expo-sharing"; 
+import { useNavigation, useRouter, Link } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { RouteProp, useRoute } from "@react-navigation/native";
-import { useEffect } from "react";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons, Feather } from "@expo/vector-icons";
 import { torrentScraper } from '../src/Scraper';
-import HistoryPage from "./history";
-// import { useScrollNavBar } from './hooks/useScrollNavBar'; // No longer needed
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
   Easing,
+  runOnJS, // <--- Ensure this is imported
 } from 'react-native-reanimated';
 
-interface Movie {
-  id: number;
-  title: string;
-  torrents: { size: string; url: string; quality: string; seeds?: number; peers?: number }[];
-}
-
+// --- TYPES ---
 interface Result {
   id: number | string;
   name: string;
@@ -37,284 +28,59 @@ interface Result {
   url: string;
   seeds?: number;
   peers?: number;
-  episodes?: {
-    season: number;
-    episode: number;
-    url: string;
-    quality: string;
-    size: string;
-    seeds?: number;
-    peers?: number;
-  }[];
-  isSeries?: boolean;
-}
-
-interface FilterOptions {
-  source: string[];
-  type: 'movie' | 'series';
 }
 
 interface QualityScore {
-  resolution: number; // 720, 1080, 2160 etc.
-  score: number;     // 1-5 based on quality
-}
-
-interface SeriesEpisode {
-  season: number;
-  episode: number;
-  url: string;
-  quality: string;
-  size: string;
-  seeds?: number;
-  peers?: number;
-}
-
-interface SeriesInfo {
-  name: string;
-  seasons: {
-    [season: number]: {
-      [episode: number]: {
-        [quality: string]: SeriesEpisode;
-      }
-    }
-  };
-  totalEpisodes: number;
-  qualities: string[];
+  resolution: number;
+  score: number;
 }
 
 type SearchRouteParamList = {
   Search: { prefillQuery?: string };
 };
 
-const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
 const SCROLL_THRESHOLD = 50;
-const SPARE_BOTTOM_SPACE = 20; // --- This is the space you want to spare ---
+const SPARE_BOTTOM_SPACE = 20;
 
-// --- ANIMATED FOOTER COMPONENT ---
+// ✅ FIXED: Create the Animated Component
+const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
+
+// --- FOOTER ---
 const AnimatedFooter = () => {
   const { tabBarVisible, tabBarHeight } = useContext(ScrollContext);
-
-  const animatedFooterStyle = useAnimatedStyle(() => {
-    return {
-      // Animate between full height and the small spare space
-      height: withTiming(tabBarVisible ? tabBarHeight : SPARE_BOTTOM_SPACE, {
-        duration: 300,
-        easing: Easing.inOut(Easing.ease),
-      }),
-    };
-  });
-
+  const animatedFooterStyle = useAnimatedStyle(() => ({
+    height: withTiming(tabBarVisible ? tabBarHeight : SPARE_BOTTOM_SPACE, {
+      duration: 300,
+      easing: Easing.inOut(Easing.ease),
+    }),
+  }));
   return <Animated.View style={[animatedFooterStyle, { backgroundColor: 'transparent' }]} />;
 };
-// --- END FOOTER ---
 
 export default function Index() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const router = useRouter();
-  // const { handleScroll, navBarOpacity, navBarTranslateY } = useScrollNavBar(); // No longer needed
-  const { setTabBarVisible, tabBarHeight } = useContext(ScrollContext);
-
-  React.useLayoutEffect(() => {
-    navigation.setOptions({ headerShown: false });
-  }, [navigation]);
+  const { setTabBarVisible } = useContext(ScrollContext);
 
   const route = useRoute<RouteProp<SearchRouteParamList, 'Search'>>();
-  const [query, setQuery] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [results, setResults] = useState<Result[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [showMore, setShowMore] = useState(false);
-  const [filters, setFilters] = useState<FilterOptions>({
-    source: [],
-    type: 'movie'
-  });
-  const [expandedSeries, setExpandedSeries] = useState<string | null>(null);
+  
   const colorScheme = useColorScheme();
-
-  const theme = colorScheme === "dark"
-    ? {
-        ...MD3DarkTheme,
-        colors: {
-          ...MD3DarkTheme.colors,
-          background: "#121212",
-          primary: "#ff8181",
-        },
-      }
-    : {
-        ...MD3LightTheme,
-        colors: {
-          ...MD3LightTheme.colors,
-          background: "#FFFFFF",
-          primary: "#ff2121",
-        },
-      };
-
-  const availableSources = ["YTS", "The Pirate Bay", "RARBG", "1337x", "NyaaSI"];
-
-  // ... (All other functions remain the same: parseEpisodeInfo, organizeSeriesEpisodes, applyFilters, etc.)
-  const parseEpisodeInfo = (name: string) => {
-    const seasonMatch = name.match(/S(\d{1,2})/i);
-    const episodeMatch = name.match(/E(\d{1,2})/i);
-    return {
-      season: seasonMatch ? parseInt(seasonMatch[1]) : null,
-      episode: episodeMatch ? parseInt(episodeMatch[1]) : null,
-    };
+  const theme = {
+    ...MD3DarkTheme,
+    colors: { ...MD3DarkTheme.colors, background: "#121212", primary: "#E50914" },
   };
 
-  const organizeSeriesEpisodes = (results: Result[]): SeriesInfo[] => {
-    const seriesMap = new Map<string, SeriesInfo>();
-
-    results.forEach(item => {
-      const isSeriesPattern = /(S\d{1,2}|Season\s*\d{1,2}|E\d{1,2}|Episode\s*\d{1,2})/i;
-      if (!isSeriesPattern.test(item.name)) return;
-
-      const episodeInfo = parseEpisodeInfo(item.name);
-      if (!episodeInfo.season || !episodeInfo.episode) return;
-
-      const seriesName = item.name.replace(/S\d{1,2}E\d{1,2}.*$/i, '').trim();
-      const quality = getQualityInfo(item.name);
-
-      if (!seriesMap.has(seriesName)) {
-        seriesMap.set(seriesName, {
-          name: seriesName,
-          seasons: {},
-          totalEpisodes: 0,
-          qualities: []
-        });
-      }
-
-      const series = seriesMap.get(seriesName)!;
-      
-      if (!series.seasons[episodeInfo.season]) {
-        series.seasons[episodeInfo.season] = {};
-      }
-      
-      if (!series.seasons[episodeInfo.season][episodeInfo.episode]) {
-        series.seasons[episodeInfo.season][episodeInfo.episode] = {};
-        series.totalEpisodes++;
-      }
-
-      series.seasons[episodeInfo.season][episodeInfo.episode][quality.label] = {
-        season: episodeInfo.season,
-        episode: episodeInfo.episode,
-        quality: quality.label,
-        url: item.url,
-        size: item.size,
-        seeds: item.seeds,
-        peers: item.peers
-      };
-
-      if (!series.qualities.includes(quality.label)) {
-        series.qualities.push(quality.label);
-      }
-    });
-
-    return Array.from(seriesMap.values());
-  };
-
-  const applyFilters = (results: Result[]) => {
-    let filteredResults = results.filter((item: Result) => {
-      const isSeriesPattern = /(S\d{1,2}|Season\s*\d{1,2}|E\d{1,2}|Episode\s*\d{1,2})/i;
-      const isSeries = isSeriesPattern.test(item.name);
-      return filters.type === 'series' ? isSeries : !isSeries;
-    });
-
-    filteredResults = filteredResults.filter(item => {
-      const quality = getQualityInfo(item.name);
-      return ['4K', '1080p', '720p'].includes(quality.label);
-    });
-
-    const qualityGroups = {
-      '4K': [] as Result[],
-      '1080p': [] as Result[],
-      '720p': [] as Result[]
-    };
-
-    filteredResults.forEach(item => {
-      const quality = getQualityInfo(item.name);
-      if (quality.label in qualityGroups) {
-        qualityGroups[quality.label as keyof typeof qualityGroups].push(item);
-      }
-    });
-
-    let finalResults: Result[] = [];
-    ['4K', '1080p', '720p'].forEach(quality => {
-      if (qualityGroups[quality as keyof typeof qualityGroups].length > 0) {
-        finalResults.push(qualityGroups[quality as keyof typeof qualityGroups][0]);
-      }
-    });
-
-    if (filters.source.length > 0) {
-      finalResults = finalResults.filter(item => filters.source.includes(item.source));
-    }
-
-    return finalResults;
-  };
-
-  const getQualityScore = (name: string): QualityScore => {
-    const resolution = name.match(/\d{3,4}p|4k/i)?.[0].toLowerCase();
-    if (resolution) {
-      if (resolution === "4k" || resolution === "2160p") return { resolution: 2160, score: 5 };
-      if (resolution === "1080p") return { resolution: 1080, score: 4 };
-      if (resolution === "720p") return { resolution: 720, score: 3 };
-    }
-    return { resolution: 0, score: 1 };
-  };
-
+  // --- HELPERS ---
   const getQualityInfo = (name: string): { score: number; label: string; color: string } => {
     const lowerName = name.toLowerCase();
-    
-    if (lowerName.includes('2160p') || lowerName.includes('4k') || lowerName.includes('uhd')) {
-      return { score: 5, label: '4K', color: '#00ff08' };
-    }
-    if (lowerName.includes('1080p') || lowerName.includes('fhd')) {
-      return { score: 4, label: '1080p', color: '#1500ff' };
-    }
-    if (lowerName.includes('720p') || lowerName.includes('hd')) {
-      return { score: 3, label: '720p', color: '#ff6e00' };
-    }
-    if (lowerName.includes('480p') || lowerName.includes('sd')) {
-      return { score: 2, label: '480p', color: '#ff0000' };
-    }
-    
-    if (lowerName.includes('bluray') || lowerName.includes('blu-ray')) {
-      return { score: 4, label: 'BluRay', color: '#2196F3' };
-    }
-    if (lowerName.includes('web-dl') || lowerName.includes('webdl')) {
-      return { score: 3, label: 'WEB-DL', color: '#FFC107' };
-    }
-    
-    return { score: 0, label: 'Unknown', color: '#9E9E9E' };
-  };
-
-  const extractAudioLanguages = (name: string): string[] => {
-    const languagePatterns: { [key: string]: string } = {
-      "multi audio|dual audio|multi-lang|multi language": "Multi",
-      "english|eng": "English",
-      "hindi|hin": "Hindi",
-      "spanish|spa": "Spanish",
-      "french|fre|fra": "French",
-      "german|ger|deu": "German",
-      "japanese|jpn": "Japanese",
-      "korean|kor": "Korean",
-      "chinese|chi|zho": "Chinese",
-      "tamil|tam": "Tamil",
-      "telugu|tel": "Telugu",
-    };
-  
-    const detectedLanguages: string[] = [];
-    for (const [pattern, language] of Object.entries(languagePatterns)) {
-      const regex = new RegExp(`\\b(${pattern})\\b`, "i");
-      if (regex.test(name)) {
-        detectedLanguages.push(language);
-      }
-    }
-  
-    if (detectedLanguages.includes("Multi")) {
-      return ["Multi"];
-    }
-  
-    return detectedLanguages.length > 0 ? detectedLanguages : ["Unknown"];
+    if (lowerName.includes('2160p') || lowerName.includes('4k')) return { score: 5, label: '4K', color: '#00ff08' };
+    if (lowerName.includes('1080p')) return { score: 4, label: '1080p', color: '#1500ff' };
+    if (lowerName.includes('720p')) return { score: 3, label: '720p', color: '#ff6e00' };
+    return { score: 0, label: 'SD', color: '#9E9E9E' };
   };
 
   const saveToHistory = async (query: string) => {
@@ -325,9 +91,7 @@ export default function Index() {
       const filtered = parsed.filter((item:any) => item.query.toLowerCase() !== query.toLowerCase());
       filtered.push(newEntry);
       await AsyncStorage.setItem("searchHistory", JSON.stringify(filtered));
-    } catch (error) {
-      console.error("Failed to save to history", error);
-    }
+    } catch (error) {}
   };
 
   useEffect(() => {
@@ -337,6 +101,7 @@ export default function Index() {
     }
   }, [route.params?.prefillQuery]); 
 
+  // --- SEARCH LOGIC ---
   const handleSearch = async (query: string = searchQuery) => {
     if (!query.trim()) {
       Alert.alert("Error", "Please enter a search term.");
@@ -345,586 +110,385 @@ export default function Index() {
     setLoading(true);
     try {
       await saveToHistory(query);
+      const scrapedResults = await torrentScraper.searchAll(query);
       
-      const [
-        ytsResults,
-        pirateBayResults,
-        scrapedResults
-      ] = await Promise.all([
-        fetchYTSResults(query),
-        fetchPirateBayResults(query),
-        torrentScraper.searchAll(query) 
-      ]);
-      
-      const combinedResults = [
-        ...ytsResults, 
-        ...pirateBayResults,
-        ...scrapedResults 
-      ];
-      
-      const uniqueResults = Array.from(new Map(
-        combinedResults.map(item => [
-          item.url.startsWith('magnet:') ? item.url : item.name,
-          item
-        ])
-      ).values());
-      
-      const sortedResults = uniqueResults.sort((a, b) => {
-        const aQuality = getQualityScore(a.name);
-        const bQuality = getQualityScore(b.name);
-        
-        if (a.seeds && b.seeds && a.seeds !== b.seeds) {
-          return b.seeds - a.seeds; 
-        }
-        
-        if (aQuality.score !== bQuality.score) {
-          return bQuality.score - aQuality.score;
-        }
-        
-        const queryLower = query.toLowerCase();
-        const aExact = a.name.toLowerCase() === queryLower;
-        const bExact = b.name.toLowerCase() === queryLower;
-        
-        if (aExact && !bExact) return -1;
-        if (!aExact && bExact) return 1;
-        
-        return a.name.localeCompare(b.name);
+      const sortedResults = scrapedResults.sort((a, b) => {
+        const seedsA = a.seeds || 0;
+        const seedsB = b.seeds || 0;
+        return seedsB - seedsA; 
       });
-      
-      if (sortedResults.length > 0) {
-        const firstIsSeries = /(S\d{1,2}|Season\s*\d{1,2}|E\d{1,2}|Episode\s*\d{1,2})/i.test(sortedResults[0].name);
-        setFilters(prev => ({ ...prev, type: firstIsSeries ? 'series' : 'movie' }));
-      }
       
       setResults(sortedResults);
     } catch (error) {
-      console.error("Error fetching data:", error);
-      try {
-        const fallbackResults = await torrentScraper.searchAll(query);
-        setResults(fallbackResults);
-      } catch (fallbackError) {
-        Alert.alert("Error", "Failed to fetch search results from all sources.");
-      }
+      Alert.alert("Error", "Failed to fetch search results.");
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchYTSResults = async (query: string): Promise<Result[]> => {
+  // --- ACTIONS ---
+  const handleOpenMagnet = async (url: string) => {
     try {
-      const response = await axios.get(
-        `https://yts.mx/api/v2/list_movies.json?query_term=${encodeURIComponent(query)}&limit=50`
-      );
-      
-      if (!response.data.data || !response.data.data.movies) {
-        return [];
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert("No App Found", "Please install a torrent client (e.g., Flud, LibreTorrent) to open magnet links.");
       }
-      
-      const movies: Movie[] = response.data.data.movies || [];
-      return movies.flatMap((movie: Movie) =>
-        movie.torrents.map((torrent: { size: string; url: string; quality: string; seeds?: number; peers?: number }) => ({
-          id: `${movie.id}-${torrent.url}`,
-          name: `${movie.title} [${torrent.quality}]`,
-          size: torrent.size || "Unknown",
-          source: "YTS",
-          url: torrent.url || "",
-          seeds: torrent.seeds || 0,
-          peers: torrent.peers || 0
-        }))
-      );
-    } catch (error) {
-      console.error("YTS Error:", error);
-      return [];
+    } catch (err) {
+      Alert.alert("Error", "Could not open the link.");
     }
   };
 
-  const fetchPirateBayResults = async (query: string): Promise<Result[]> => {
-    try {
-      const response = await axios.get(
-        `https://apibay.org/q.php?q=${encodeURIComponent(query)}&cat=0`
-      );
-      
-      if (!response.data || !Array.isArray(response.data)) {
-        return [];
+  const handleShareFile = async (url: string, name: string) => {
+    if (!url.startsWith('magnet:')) {
+      try {
+        const fileUri = FileSystem.documentDirectory + `${name}.torrent`;
+        const { uri } = await FileSystem.downloadAsync(url, fileUri);
+        if (await Sharing.isAvailableAsync()) {
+            await Sharing.shareAsync(uri);
+        } else {
+            Alert.alert("Error", "Sharing is not available on this device");
+        }
+      } catch (e) {
+        Alert.alert("Error", "Could not download torrent file.");
       }
-      
-      return response.data.map((item: any) => {
-        const sizeInMB = parseInt(item.size) / (1024 * 1024);
-        const size = sizeInMB >= 1024 
-          ? `${(sizeInMB / 1024).toFixed(2)} GB`
-          : `${sizeInMB.toFixed(2)} MB`;
-        return {
-          id: item.id,
-          name: item.name,
-          size,
-          source: "The Pirate Bay",
-          url: `magnet:?xt=urn:btih:${item.info_hash}&dn=${encodeURIComponent(item.name)}`,
-          seeds: parseInt(item.seeders) || 0,
-          peers: parseInt(item.leechers) || 0
-        };
-      });
-    } catch (error) {
-      console.error("PirateBay Error:", error);
-      return [];
-    }
-  };
-
-  const formatFileSize = (bytes: number | string): string => {
-    if (typeof bytes === 'string') {
-      bytes = parseInt(bytes);
-    }
-    
-    if (isNaN(bytes) || bytes === 0) return "Unknown";
-    
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    
-    return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  const handleDownload = async (url: string, name: string) => {
-    if (!url) {
-      Alert.alert("Error", "No download URL available.");
       return;
     }
 
     try {
-      if (url.startsWith("magnet:")) {
-        const supported = await Linking.canOpenURL(url);
-        if (supported) {
-          await Linking.openURL(url);
-        } else {
-          Alert.alert("Error", "No app available to handle magnet links.");
-        }
+      const fileName = `${name.replace(/[^a-z0-9]/gi, '_').substring(0, 50)}.magnet`;
+      const fileUri = FileSystem.documentDirectory + fileName;
+      await FileSystem.writeAsStringAsync(fileUri, url);
+      
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, { mimeType: 'text/plain', dialogTitle: 'Share Magnet Link' });
       } else {
-        const supported = await Linking.canOpenURL(url);
-        if (supported) {
-          await Linking.openURL(url);
-        } else {
-          const filePath = `${FileSystem.documentDirectory}${name}.torrent`;
-          const { uri } = await FileSystem.downloadAsync(url, filePath);
-
-          if (Platform.OS === "android") {
-            const action = "android.intent.action.VIEW";
-            const params = {
-              data: uri,
-              flags: 1,
-              type: "application/x-bittorrent",
-            };
-            await IntentLauncher.startActivityAsync(action, params);
-          } else if (Platform.OS === "ios") {
-            const supported = await Linking.canOpenURL(uri);
-            if (supported) {
-              await Linking.openURL(uri);
-            } else {
-              Alert.alert("Error", "No app available to handle this file.");
-            }
-          }
-        }
+        Alert.alert("Error", "Sharing is not available on this device");
       }
     } catch (error) {
-      console.error("Error downloading or opening file:", error);
-      Alert.alert("Error", "Failed to download or open the file.");
+      console.error(error);
+      Alert.alert("Error", "Failed to share file.");
     }
   };
 
-  const handleViewEpisodes = (series: SeriesInfo) => {
-    router.push({
-      pathname: "/episodes",
-      params: { 
-        series: JSON.stringify(series)
-      }
-    });
-  };
-
-  const renderSeriesCard = (series: SeriesInfo) => (
-    <Card 
-      key={series.name} 
-      style={[styles.card, { backgroundColor: '#1e1e1e' }]}
-    >
-      <Card.Title 
-        title={series.name}
-        subtitle={`Total Episodes: ${series.totalEpisodes}`}
-        titleStyle={{ color: '#fff' }}
-        subtitleStyle={{ color: '#ccc' }}
-      />
-      <Card.Content>
-        <View style={styles.seasonsContainer}>
-          {Object.keys(series.seasons).map((season) => (
-            <View key={season} style={[styles.seasonSection, { backgroundColor: '#2d2d2d' }]}>
-              <Text style={[styles.seasonTitle, { color: '#fff' }]}>Season {season}</Text>
-              <View style={styles.qualityContainer}>
-                <Text style={{ color: '#ccc' }}>Available Qualities: </Text>
-                {series.qualities.map(quality => (
-                  <Chip 
-                    key={quality} 
-                    style={[styles.qualityChip, { backgroundColor: '#404040' }]}
-                    textStyle={{ color: '#fff' }}
-                  >
-                    {quality}
-                  </Chip>
-                ))}
-              </View>
-              <Text style={[styles.episodeCount, { color: '#ccc' }]}>
-                Episodes: {Object.keys(series.seasons[parseInt(season)]).length}
-              </Text>
-            </View>
-          ))}
-        </View>
-      </Card.Content>
-      <Card.Actions style={{ justifyContent: 'space-between' }}>
-        <Button 
-          mode="contained"
-          onPress={() => handleViewEpisodes(series)}
-          style={styles.actionButton}
-        >
-          View Episodes
-        </Button>
-        <Button 
-          mode="contained"
-          onPress={() => Alert.alert("Coming soon", "Batch download feature coming soon!")}
-          style={styles.actionButton}
-        >
-          Download All
-        </Button>
-      </Card.Actions>
-    </Card>
-  );
-
-  const renderResults = () => {
-    const visibleResults = showMore ? results : results.slice(0, 5);
-    return visibleResults.map((item) => {
-      const quality = getQualityInfo(item.name);
-      const audioLanguages = extractAudioLanguages(item.name); 
-      const languageDisplay = audioLanguages.length > 1 ? "Multi" : audioLanguages[0];
-
-      const seedPeerDisplay = `${item.seeds || 0} seeders, ${item.peers || 0} peers`;
-      
-      const seedsCount = item.seeds || 0;
-      let healthColor = '#ff0000'; 
-      
-      if (seedsCount > 50) healthColor = '#00ff00'; 
-      else if (seedsCount > 10) healthColor = '#ffff00'; 
-      else if (seedsCount > 0) healthColor = '#ff8000'; 
-
-      return (
-        <Card key={item.id.toString()} style={styles.card}>
-          <Card.Title
-            titleStyle={{ color: 'white' }}
-            title={item.name}
-            right={(props) => (
-              <View style={styles.qualityBadge}>
-                <Text style={[styles.qualityText, { color: quality.color }]}>
-                  {quality.label}
-                </Text>
-              </View>
-            )}
-          />
-          <Card.Content>
-            <View style={styles.contentRow}>
-              <Text style={{ color: 'white' }}>Size: {item.size?.toString() || "Unknown"}</Text>
-              <Text style={{ color: 'white' }}>Source: {item.source?.toString() || "Unknown"}</Text>
-            </View>
-            <View style={styles.contentRow}>
-              <Text style={{ color: 'white' }}>Audio: {languageDisplay}</Text>
-              <Text style={{ color: healthColor, fontWeight: 'bold' }}>{seedPeerDisplay}</Text>
-            </View>
-            <Button style={styles.button} mode="outlined" onPress={() => handleDownload(item.url, item.name)}>
-              <Text style={styles.btntxt}> Download</Text>
-            </Button>
-          </Card.Content>
-        </Card>
-      );
-    });
-  };
-
+  // --- SCROLL HANDLER ---
   const lastScrollY = useRef(0);
-
-  // --- UPDATED SCROLL HANDLER ---
+  
   const handleScrollChange = (event: any) => {
     const currentScrollY = event.nativeEvent.contentOffset.y;
-
     if (currentScrollY < SCROLL_THRESHOLD) {
-      setTabBarVisible(true);
+      // ✅ Use runOnJS because setTabBarVisible is a JS function
+      runOnJS(setTabBarVisible)(true);
       lastScrollY.current = currentScrollY;
       return;
     }
-
     const delta = currentScrollY - lastScrollY.current;
-
     if (Math.abs(delta) > 10) {
-      if (delta > 0) {
-        // Scrolling DOWN
-        setTabBarVisible(false);
-      } else {
-        // Scrolling UP
-        setTabBarVisible(true);
-      }
+      runOnJS(setTabBarVisible)(delta < 0);
     }
-    
     lastScrollY.current = currentScrollY;
   };
 
+  // --- RENDER CARD ---
+  const renderResults = () => {
+    const visibleResults = showMore ? results : results.slice(0, 5);
+    
+    return visibleResults.map((item, index) => {
+      const quality = getQualityInfo(item.name);
+      const seedsCount = item.seeds || 0;
+      let healthColor = '#E50914'; // Red (Poor)
+      if (seedsCount > 50) healthColor = '#46d369'; // Green (Good)
+      else if (seedsCount > 10) healthColor = '#ffb700'; // Yellow (Okay)
+
+      return (
+        <Animated.View 
+          key={index} 
+          style={styles.cardContainer}
+        >
+          <View style={styles.cardHeader}>
+            <View style={{flex: 1}}>
+                <Text style={styles.cardTitle} numberOfLines={2}>{item.name}</Text>
+                <View style={styles.metaRow}>
+                    <View style={[styles.qualityTag, { borderColor: quality.color }]}>
+                        <Text style={[styles.qualityText, { color: quality.color }]}>{quality.label}</Text>
+                    </View>
+                    <Text style={styles.fileSize}>{item.size}</Text>
+                    <Text style={styles.sourceText}>{item.source}</Text>
+                </View>
+            </View>
+          </View>
+
+          <View style={styles.cardFooter}>
+             <View style={styles.seedRow}>
+                <Feather name="arrow-up-circle" size={16} color={healthColor} />
+                <Text style={[styles.seedText, {color: healthColor}]}>{item.seeds}</Text>
+                <Feather name="arrow-down-circle" size={16} color="#888" style={{marginLeft: 10}} />
+                <Text style={styles.peerText}>{item.peers}</Text>
+             </View>
+
+             <View style={styles.actionRow}>
+                <TouchableOpacity 
+                    style={styles.iconBtn} 
+                    onPress={() => handleShareFile(item.url, item.name)}
+                >
+                    <Feather name="share-2" size={20} color="#ccc" />
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                    style={styles.downloadBtn} 
+                    onPress={() => handleOpenMagnet(item.url)}
+                >
+                    <Feather name="download" size={18} color="#fff" />
+                    <Text style={styles.downloadText}>Download</Text>
+                </TouchableOpacity>
+             </View>
+          </View>
+        </Animated.View>
+      );
+    });
+  };
+
   return (
-    <View style={styles.love}>
+    <View style={styles.mainContainer}>
       <StatusBar
-        barStyle={colorScheme === "dark" ? "light-content" : "dark-content"}
-        backgroundColor={theme.colors.background}
+        barStyle="light-content"
+        backgroundColor="#121212"
       />
       
-      <TouchableOpacity
-        style={styles.historyButton}
-        onPress={() => navigation.navigate("history")}
-      >
-        <Ionicons name="time-outline" size={30} color="#fff" />
-      </TouchableOpacity>
+      {/* Header */}
+      <View style={styles.header}>
+          <Text style={styles.pageTitle}>Search</Text>
+          <TouchableOpacity
+            style={styles.historyBtn}
+            onPress={() => navigation.navigate("history")}
+          >
+            <MaterialIcons name="history" size={26} color="#ccc" />
+          </TouchableOpacity>
+      </View>
 
       <AnimatedScrollView 
-        contentContainerStyle={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
         onScroll={handleScrollChange}
         scrollEventThrottle={16}
+        keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.container}>
-          <Text style={styles.heading}>Torrent Search</Text>
-          <View style={styles.searchContainer}>
+          {/* Search Bar */}
+          <View style={styles.searchBoxContainer}>
+            <Feather name="search" size={20} color="#888" style={styles.searchIcon} />
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
               underlineColor="transparent"
               activeUnderlineColor="transparent"
-              cursorColor="gray"
-              placeholderTextColor="gray"
-              selectionColor="gray"
+              selectionColor="#E50914"
               textColor="white"
-              placeholder="Search for movies or series"
-              style={styles.input}
+              placeholder="Search movies, series..."
+              placeholderTextColor="#666"
+              style={styles.searchInput}
               onSubmitEditing={() => handleSearch(searchQuery)}
               returnKeyType="search"
             />
-            <TouchableOpacity
-              onPress={() => {
-                setSearchQuery('');
-                setResults([]);
-              }}
-              style={styles.clearButton}
-            >
-              <Ionicons name="close-circle" size={24} color="gray" />
-            </TouchableOpacity>
+            {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => { setSearchQuery(''); setResults([]); }}>
+                    <Ionicons name="close-circle" size={20} color="#666" />
+                </TouchableOpacity>
+            )}
           </View>
 
-          {/* ... (filters commented out) ... */}
-
-          {renderResults()}
-          {results.length > 5 && (
-            <Button
-              mode="text"
-              onPress={() => setShowMore(!showMore)}
-              style={styles.showMoreButton}
-              labelStyle={{ color: 'white' }}
-            >
-              {showMore ? "Show Less" : "Show More"}
-            </Button>
+          {loading && (
+              <ActivityIndicator color="#E50914" size="large" style={{marginTop: 40}} />
           )}
-        </View>
-        <AnimatedFooter />
+
+          {/* Results List */}
+          <View style={styles.resultsContainer}>
+            {renderResults()}
+          </View>
+
+          {/* Show More */}
+          {results.length > 5 && (
+            <TouchableOpacity
+              onPress={() => setShowMore(!showMore)}
+              style={styles.showMoreBtn}
+            >
+              <Text style={styles.showMoreText}>{showMore ? "Show Less" : "Show More Results"}</Text>
+              <Feather name={showMore ? "chevron-up" : "chevron-down"} size={18} color="#888" />
+            </TouchableOpacity>
+          )}
+          
+          <AnimatedFooter />
       </AnimatedScrollView>
     </View>
   );
 }
 
-// Styles (No changes)
 const styles = StyleSheet.create({
-  scrollContainer: {
-    flexGrow: 1,
-    justifyContent: "center",
-    backgroundColor: "rgba(20, 20, 20, 0.9)",
-  },
-  love:{
-    backgroundColor: "#000",
+  mainContainer: {
     flex: 1,
+    backgroundColor: "#121212",
   },
-  sourceChipScroll: {
-    marginBottom: 16,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+  header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingTop: 50,
+      paddingBottom: 20,
   },
-  sourceChip: {
-    backgroundColor: '#404040',
-    marginRight: 8,
-    marginBottom: 8,
+  pageTitle: {
+      fontSize: 32,
+      fontFamily: 'GoogleSansFlex-Bold',
+      color: '#fff',
   },
-  clearButton: {
-    position: 'absolute',
-    right: '5%',
-    top: '15%',
-    alignSelf: 'flex-end',
-    verticalAlign:'middle'
+  historyBtn: {
+      padding: 8,
+      backgroundColor: '#1E1E1E',
+      borderRadius: 12,
   },
-  container: {
-    flex: 1,
-    padding: 16,
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 40,
   },
-  heading: {
-    fontSize: 35,
-    fontWeight: "bold",
-    fontFamily: 'GoogleSansFlex-Bold',
-    textAlign: "center",
-    marginBottom: 50,
-    marginTop: 250,
-    color: "#FFFFFF",
+  
+  // Search Box
+  searchBoxContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#1E1E1E',
+      borderRadius: 16,
+      paddingHorizontal: 16,
+      height: 50,
+      marginBottom: 24,
+      borderWidth: 1,
+      borderColor: '#333',
   },
-  searchContainer: {
-    marginBottom: 24,
+  searchIcon: {
+      marginRight: 10,
   },
-  input: {
-    backgroundColor: 'black',
-    color: 'white',
-    fontSize: 16,
-    fontFamily: 'GoogleSansFlex-Regular',
-    width: '100%',
-    paddingRight: 40,
-    height: 40,
-    paddingHorizontal: 16, // Add padding to make space for the clear button
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'gray',
-    borderTopEndRadius: 20,
-    borderTopLeftRadius: 20,
-    paddingStart: 10,
-    marginBottom: 16,
+  searchInput: {
+      flex: 1,
+      backgroundColor: 'transparent',
+      height: 50,
+      fontSize: 16,
+      fontFamily: 'GoogleSansFlex-Regular',
   },
-  button: {
-    marginBottom: 16,
-    color:'red',
+
+  // Card Styles
+  resultsContainer: {
+      gap: 16,
   },
-  btntxt:{
-    color:'red',
+  cardContainer: {
+      backgroundColor: '#1E1E1E',
+      borderRadius: 12,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: '#333',
   },
-  card: {
-    marginBottom: 14,
-    elevation: 4,
-    backgroundColor: '#1e1e1e',
-    color: 'gray',
-    height: 190,
+  cardHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: 12,
   },
-  filterContainer: {
-    marginBottom: 16,
+  cardTitle: {
+      fontSize: 16,
+      color: '#fff',
+      fontFamily: 'GoogleSansFlex-Medium',
+      marginBottom: 8,
+      lineHeight: 22,
   },
-  chipContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginVertical: 8,
+  metaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
   },
-  chip: {
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  contentRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  qualityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  qualityLabel: {
-    marginRight: 8,
-  },
-  starContainer: {
-    flexDirection: 'row',
-  },
-  star: {
-    fontSize: 16,
-    marginHorizontal: 2,
-  },
-  qualityBadge: {
-    padding: 4,
-    borderRadius: 4,
-    marginRight: 8,
+  qualityTag: {
+      borderWidth: 1,
+      borderRadius: 4,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
   },
   qualityText: {
-    fontWeight: 'bold',
-    fontFamily: 'GoogleSansFlex-Medium',
+      fontSize: 10,
+      fontWeight: 'bold',
+      fontFamily: 'GoogleSansFlex-Bold',
   },
-  typeContainer: {
-    marginBottom: 16,
+  fileSize: {
+      fontSize: 12,
+      color: '#888',
+      fontFamily: 'GoogleSansFlex-Regular',
   },
-  segmentedContainer: {
-    flexDirection: 'row',
-    marginTop: 8,
-    gap: 8,
+  sourceText: {
+      fontSize: 12,
+      color: '#666',
+      fontFamily: 'GoogleSansFlex-Regular',
+      backgroundColor: '#2a2a2a',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
   },
-  segmentButton: {
-    flex: 1,
+  
+  // Footer of Card
+  cardFooter: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 8,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: '#333',
   },
-  episodesContainer: {
-    marginTop: 8,
+  seedRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
   },
-  episodesTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    fontFamily: 'GoogleSansFlex-Bold',
-    marginBottom: 8,
+  seedText: {
+      marginLeft: 6,
+      fontSize: 13,
+      fontWeight: 'bold',
+      fontFamily: 'GoogleSansFlex-Medium',
   },
-  episodeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+  peerText: {
+      marginLeft: 6,
+      fontSize: 13,
+      color: '#888',
+      fontFamily: 'GoogleSansFlex-Regular',
   },
-  seasonsContainer: {
-    marginTop: 8,
+  actionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
   },
-  seasonSection: {
-    marginBottom: 16,
-    padding: 8,
-    backgroundColor: '#2d2d2d',
-    borderRadius: 4,
+  iconBtn: {
+      padding: 8,
+      backgroundColor: '#2a2a2a',
+      borderRadius: 8,
   },
-  seasonTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    fontFamily: 'GoogleSansFlex-Bold',
-    marginBottom: 8,
-    color: '#fff',
+  downloadBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#E50914',
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 8,
+      gap: 6,
   },
-  qualityContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 8,
+  downloadText: {
+      color: '#fff',
+      fontSize: 13,
+      fontFamily: 'GoogleSansFlex-Bold',
   },
-  qualityChip: {
-    marginRight: 4,
-    backgroundColor: '#404040',
+
+  // Show More
+  showMoreBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 16,
+      gap: 8,
   },
-  episodeCount: {
-    fontWeight: '500',
-    fontFamily: 'GoogleSansFlex-Medium',
-    color: '#ccc',
-  },
-  actionButton: {
-    flex: 1,
-    marginHorizontal: 4,
-  },
-  showMoreButton: {
-    marginTop: 16,
-    alignSelf: 'center',
-    borderColor:'gray',
-    borderWidth: 1,
-  },
-  historyButton: {
-    position: 'absolute',
-    top: 60,
-    right: 20,
-    zIndex: 100,
-    padding: 8,
+  showMoreText: {
+      color: '#888',
+      fontSize: 14,
+      fontFamily: 'GoogleSansFlex-Medium',
   },
 });

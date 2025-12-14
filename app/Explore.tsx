@@ -698,7 +698,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(20, 20, 20, 0.95)',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-    ...Platform.select({ ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84 }, android: { elevation: 5 } }),
+    ...Platform.select({ ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84 } }),
   },
   searchInputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#2A2A2A', borderRadius: 12, height: 48, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)' },
   searchInput: { flex: 1, backgroundColor: 'transparent', height: 48, fontSize: 16, color: 'white', paddingLeft: 16, fontFamily: 'GoogleSansFlex-Medium' },
@@ -708,7 +708,7 @@ const styles = StyleSheet.create({
   // Hero
   heroContainer: {
     width: HERO_CARD_WIDTH, height: HERO_HEIGHT, backgroundColor: '#1A1A1A', borderRadius: 16, overflow: 'hidden', alignSelf: 'center', marginBottom: 10,
-    ...Platform.select({ ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4.65 }, android: { elevation: 8 } }),
+    ...Platform.select({ ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4.65 },}),
   },
   heroLoading: { height: HERO_HEIGHT, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1A1A1A', borderRadius: 16 },
   heroItemContainer: { width: HERO_CARD_WIDTH, height: HERO_HEIGHT },
@@ -749,7 +749,7 @@ const styles = StyleSheet.create({
   cardContainer: { position: 'relative' },
   sectionImage: {
     borderRadius: 10, backgroundColor: '#1A1A1A',
-    ...Platform.select({ ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84 }, android: { elevation: 4 } }),
+    ...Platform.select({ ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84 } }),
   },
   cardOverlay: { position: 'absolute', top: 8, right: 8 },
   ratingBadgeSmall: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.8)', paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6, gap: 3 },
