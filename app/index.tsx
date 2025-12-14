@@ -1,5 +1,4 @@
-import React, { useState, useRef, useContext, useEffect } from "react";
-import { ScrollContext } from '../context/ScrollContext';
+import React, { useState, useRef, useEffect } from "react";
 import { View, StyleSheet, Alert, Linking, useColorScheme, StatusBar, ScrollView, Platform, TouchableOpacity, Share } from "react-native";
 import { Provider as PaperProvider, TextInput, Button, Card, Text, ActivityIndicator, MD3DarkTheme, MD3LightTheme, Chip } from "react-native-paper";
 import axios from "axios";
@@ -45,22 +44,11 @@ const SPARE_BOTTOM_SPACE = 20;
 // ✅ FIXED: Create the Animated Component
 const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
 
-// --- FOOTER ---
-const AnimatedFooter = () => {
-  const { tabBarVisible, tabBarHeight } = useContext(ScrollContext);
-  const animatedFooterStyle = useAnimatedStyle(() => ({
-    height: withTiming(tabBarVisible ? tabBarHeight : SPARE_BOTTOM_SPACE, {
-      duration: 300,
-      easing: Easing.inOut(Easing.ease),
-    }),
-  }));
-  return <Animated.View style={[animatedFooterStyle, { backgroundColor: 'transparent' }]} />;
-};
+
 
 export default function Index() {
   const navigation = useNavigation<any>();
   const router = useRouter();
-  const { setTabBarVisible } = useContext(ScrollContext);
 
   const route = useRoute<RouteProp<SearchRouteParamList, 'Search'>>();
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -172,23 +160,7 @@ export default function Index() {
     }
   };
 
-  // --- SCROLL HANDLER ---
   const lastScrollY = useRef(0);
-  
-  const handleScrollChange = (event: any) => {
-    const currentScrollY = event.nativeEvent.contentOffset.y;
-    if (currentScrollY < SCROLL_THRESHOLD) {
-      // ✅ Use runOnJS because setTabBarVisible is a JS function
-      runOnJS(setTabBarVisible)(true);
-      lastScrollY.current = currentScrollY;
-      return;
-    }
-    const delta = currentScrollY - lastScrollY.current;
-    if (Math.abs(delta) > 10) {
-      runOnJS(setTabBarVisible)(delta < 0);
-    }
-    lastScrollY.current = currentScrollY;
-  };
 
   // --- RENDER CARD ---
   const renderResults = () => {
@@ -269,7 +241,6 @@ export default function Index() {
 
       <AnimatedScrollView 
         contentContainerStyle={styles.scrollContent}
-        onScroll={handleScrollChange}
         scrollEventThrottle={16}
         keyboardShouldPersistTaps="handled"
       >
@@ -316,7 +287,7 @@ export default function Index() {
             </TouchableOpacity>
           )}
           
-          <AnimatedFooter />
+          
       </AnimatedScrollView>
     </View>
   );

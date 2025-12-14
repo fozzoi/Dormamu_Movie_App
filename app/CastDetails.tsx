@@ -1,3 +1,4 @@
+// CastDetails.tsx
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
@@ -13,10 +14,12 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
+// Add AsyncStorage import
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur'; // Added for Glassmorphism
+import { BlurView } from 'expo-blur'; 
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -26,11 +29,10 @@ import Animated, {
   FadeInDown,
   withSpring,
   withSequence,
-  runOnJS,
 } from 'react-native-reanimated';
 import { FlashList } from '@shopify/flash-list';
 
-// Import TMDB functions
+// Import TMDB functions (Keep your existing imports)
 import { 
   getPersonDetails, 
   getPersonCombinedCredits, 
@@ -61,6 +63,7 @@ export default function CastDetails() {
   const [loading, setLoading] = useState(true);
   const [isBioExpanded, setIsBioExpanded] = useState(false);
   
+  // Favorites State
   const [isLiked, setIsLiked] = useState(false);
   const likedScale = useSharedValue(1);
 
@@ -68,7 +71,6 @@ export default function CastDetails() {
   const [galleryVisible, setGalleryVisible] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   
-  // Refs for syncing main image and thumbnail list
   const headerListRef = useRef<FlatList>(null);
   const mainGalleryRef = useRef<FlatList>(null);
   const thumbnailGalleryRef = useRef<FlatList>(null);
@@ -77,7 +79,22 @@ export default function CastDetails() {
 
   useEffect(() => {
     loadData();
+    checkIfLiked(); // Check storage on mount
   }, [personId]);
+
+  // --- NEW: Check if artist is in favorites ---
+  const checkIfLiked = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('favoriteArtists');
+      if (stored) {
+        const artists = JSON.parse(stored);
+        const exists = artists.some((a: any) => a.id === personId);
+        setIsLiked(exists);
+      }
+    } catch (e) {
+      console.log('Error checking favorites', e);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -103,14 +120,49 @@ export default function CastDetails() {
     }
   };
 
-  const handleLovePress = useCallback(() => {
+  // --- NEW: Handle Love Press with Storage Logic ---
+  const handleLovePress = useCallback(async () => {
+    if (!person) return;
+
     const newValue = !isLiked;
-    setIsLiked(newValue);
+    setIsLiked(newValue); // Optimistic update
+    
+    // Animation
     likedScale.value = withSequence(
       withSpring(1.2, { damping: 10, stiffness: 200 }),
       withSpring(1, { damping: 10, stiffness: 200 })
     );
-  }, [isLiked]);
+
+    try {
+      const stored = await AsyncStorage.getItem('favoriteArtists');
+      let artists = stored ? JSON.parse(stored) : [];
+
+      if (newValue) {
+        // Add to favorites (save only essential data to save space)
+        const artistToSave = {
+          id: person.id,
+          name: person.name,
+          profile_path: person.profile_path,
+          known_for_department: person.known_for_department,
+          popularity: person.popularity
+        };
+        // Avoid duplicates
+        if (!artists.some((a: any) => a.id === person.id)) {
+            artists.push(artistToSave);
+        }
+      } else {
+        // Remove from favorites
+        artists = artists.filter((a: any) => a.id !== person.id);
+      }
+
+      await AsyncStorage.setItem('favoriteArtists', JSON.stringify(artists));
+    } catch (e) {
+      console.log('Error saving favorite', e);
+      // Revert on error
+      setIsLiked(!newValue);
+    }
+
+  }, [isLiked, person, likedScale]);
 
   const animatedHeartStyle = useAnimatedStyle(() => ({
     transform: [{ scale: likedScale.value }],
@@ -220,16 +272,14 @@ export default function CastDetails() {
     return (
         <Modal
           visible={galleryVisible}
-          transparent={true} // Set true to allow our custom black view to cover everything
+          transparent={true} 
           onRequestClose={() => setGalleryVisible(false)}
           animationType="fade"
           statusBarTranslucent={true}
         >
-          {/* True Full Screen Black Background */}
           <View style={styles.modalContainer}>
             <StatusBar hidden={true} /> 
             
-            {/* Top Bar (Counter & Controls) */}
             <View style={styles.modalHeader}>
                 <TouchableOpacity style={styles.modalIconBtn} onPress={() => setGalleryVisible(false)}>
                     <Ionicons name="close" size={24} color="white" />
@@ -244,7 +294,6 @@ export default function CastDetails() {
                 </TouchableOpacity>
             </View>
 
-            {/* Main Image Swiper */}
             <View style={{flex: 1, justifyContent: 'center'}}>
                 <FlatList
                 ref={mainGalleryRef}
@@ -258,7 +307,6 @@ export default function CastDetails() {
                 onMomentumScrollEnd={(ev) => {
                     const newIndex = Math.round(ev.nativeEvent.contentOffset.x / SCREEN_WIDTH);
                     setCurrentImageIndex(newIndex);
-                    // Sync thumbnail strip
                     thumbnailGalleryRef.current?.scrollToIndex({ index: newIndex, animated: true, viewPosition: 0.5 });
                 }}
                 renderItem={({ item }) => (
@@ -273,7 +321,6 @@ export default function CastDetails() {
                 />
             </View>
 
-            {/* Bottom Thumbnail Strip */}
             {imagesToRender.length > 1 && (
                 <View style={styles.thumbnailStripContainer}>
                     <FlatList
@@ -336,10 +383,6 @@ export default function CastDetails() {
                 pagingEnabled
                 showsHorizontalScrollIndicator={false}
                 keyExtractor={(item, index) => `header-${index}`}
-                onMomentumScrollEnd={(ev) => {
-                    const newIndex = Math.round(ev.nativeEvent.contentOffset.x / width);
-                    // Optional: Update current index if you want sync
-                }}
                 renderItem={({ item, index }) => (
                     <TouchableOpacity 
                         activeOpacity={0.95} 
@@ -481,243 +524,44 @@ export default function CastDetails() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#141414',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#141414',
-  },
-  
-  // Header
-  headerContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 1,
-    overflow: 'hidden',
-    backgroundColor: '#141414',
-  },
-  headerGradient: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: '100%',
-  },
-  topBar: {
-    position: 'absolute',
-    top: TOP_BAR_PADDING,
-    left: 16,
-    right: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    zIndex: 10,
-  },
-  // Glassmorphic Buttons
-  blurBtnWrapper: {
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  blurBtn: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)', // Fallback
-  },
-  nameOverlay: {
-    position: 'absolute',
-    bottom: 24,
-    left: 16,
-    right: 16,
-  },
-  personName: {
-    fontFamily: 'GoogleSansFlex-Bold',
-    fontSize: 36,
-    color: '#FFF',
-    textShadowColor: 'rgba(0,0,0,0.8)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-    lineHeight: 42,
-  },
-  deptBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#E50914',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginTop: 8,
-  },
-  departmentText: {
-    fontFamily: 'GoogleSansFlex-Bold',
-    fontSize: 12,
-    color: '#FFF',
-    textTransform: 'uppercase',
-  },
-
-  // Content
-  scrollContent: {
-    paddingBottom: 20,
-  },
-  infoGrid: {
-    flexDirection: 'row',
-    backgroundColor: '#1F1F1F',
-    margin: 16,
-    paddingVertical: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  infoItem: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 4,
-  },
-  infoLabel: {
-    fontFamily: 'GoogleSansFlex-Regular',
-    fontSize: 11,
-    color: '#8C8C8C',
-    marginBottom: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  infoValue: {
-    fontFamily: 'GoogleSansFlex-Bold',
-    fontSize: 14,
-    color: '#FFF',
-    textAlign: 'center',
-  },
-
-  section: {
-    paddingHorizontal: 16,
-    marginBottom: 24,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-    gap: 10,
-  },
-  sectionTitle: {
-    fontFamily: 'GoogleSansFlex-Bold',
-    fontSize: 20,
-    color: '#FFF',
-    marginBottom: 8,
-  },
-  countBadge: {
-    fontFamily: 'GoogleSansFlex-Bold',
-    fontSize: 12,
-    color: '#141414',
-    backgroundColor: '#8C8C8C',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-    overflow: 'hidden',
-    marginTop: -8,
-  },
-  biographyText: {
-    fontFamily: 'GoogleSansFlex-Regular',
-    fontSize: 15,
-    color: '#CCC',
-    lineHeight: 24,
-  },
-  readMoreBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  readMoreText: {
-    fontFamily: 'GoogleSansFlex-Bold',
-    fontSize: 14,
-    color: '#E50914',
-    marginRight: 4,
-  },
-
-  creditsList: {
-    paddingTop: 0,
-  },
-  creditCard: {
-    width: CARD_WIDTH,
-    marginBottom: 16,
-    marginRight: 10,
-  },
-  cardImageContainer: {
-      position: 'relative',
-  },
-  creditImage: {
-    width: '100%',
-    height: CARD_WIDTH * 1.5,
-    borderRadius: 8,
-    backgroundColor: '#2A2A2A',
-  },
+  container: { flex: 1, backgroundColor: '#141414' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#141414' },
+  headerContainer: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1, overflow: 'hidden', backgroundColor: '#141414' },
+  headerGradient: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '100%' },
+  topBar: { position: 'absolute', top: TOP_BAR_PADDING, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', zIndex: 10 },
+  blurBtnWrapper: { borderRadius: 20, overflow: 'hidden' },
+  blurBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' },
+  nameOverlay: { position: 'absolute', bottom: 24, left: 16, right: 16 },
+  personName: { fontFamily: 'GoogleSansFlex-Bold', fontSize: 36, color: '#FFF', textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4, lineHeight: 42 },
+  deptBadge: { alignSelf: 'flex-start', backgroundColor: '#E50914', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginTop: 8 },
+  departmentText: { fontFamily: 'GoogleSansFlex-Bold', fontSize: 12, color: '#FFF', textTransform: 'uppercase' },
+  scrollContent: { paddingBottom: 20 },
+  infoGrid: { flexDirection: 'row', backgroundColor: '#1F1F1F', margin: 16, paddingVertical: 16, borderRadius: 12, borderWidth: 1, borderColor: '#333' },
+  infoItem: { flex: 1, alignItems: 'center', paddingHorizontal: 4 },
+  infoLabel: { fontFamily: 'GoogleSansFlex-Regular', fontSize: 11, color: '#8C8C8C', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
+  infoValue: { fontFamily: 'GoogleSansFlex-Bold', fontSize: 14, color: '#FFF', textAlign: 'center' },
+  section: { paddingHorizontal: 16, marginBottom: 24 },
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 10 },
+  sectionTitle: { fontFamily: 'GoogleSansFlex-Bold', fontSize: 20, color: '#FFF', marginBottom: 8 },
+  countBadge: { fontFamily: 'GoogleSansFlex-Bold', fontSize: 12, color: '#141414', backgroundColor: '#8C8C8C', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10, overflow: 'hidden', marginTop: -8 },
+  biographyText: { fontFamily: 'GoogleSansFlex-Regular', fontSize: 15, color: '#CCC', lineHeight: 24 },
+  readMoreBtn: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  readMoreText: { fontFamily: 'GoogleSansFlex-Bold', fontSize: 14, color: '#E50914', marginRight: 4 },
+  creditsList: { paddingTop: 0 },
+  creditCard: { width: CARD_WIDTH, marginBottom: 16, marginRight: 10 },
+  cardImageContainer: { position: 'relative' },
+  creditImage: { width: '100%', height: CARD_WIDTH * 1.5, borderRadius: 8, backgroundColor: '#2A2A2A' },
   cardOverlay: { position: 'absolute', top: 8, right: 8 },
   ratingBadgeSmall: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.8)', paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6, gap: 3 },
   ratingTextSmall: { color: '#FFFFFF', fontSize: 11, fontWeight: '600', fontFamily: 'GoogleSansFlex-Bold' },
-  creditTitle: {
-    fontFamily: 'GoogleSansFlex-Medium',
-    fontSize: 12,
-    color: '#E5E5E5',
-    marginTop: 8,
-  },
-  creditCharacter: {
-    fontFamily: 'GoogleSansFlex-Regular',
-    fontSize: 11,
-    color: '#8C8C8C',
-    marginTop: 2,
-  },
-
-  // --- FULL SCREEN MODAL STYLES ---
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#000000', // Pure Black
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
-  },
-  modalHeader: {
-      position: 'absolute',
-      top: 40,
-      left: 0,
-      right: 0,
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingHorizontal: 20,
-      zIndex: 100,
-  },
-  galleryCounter: {
-      color: 'white',
-      fontFamily: 'GoogleSansFlex-Medium',
-      fontSize: 16,
-  },
-  modalIconBtn: {
-    padding: 8,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 20,
-  },
-  thumbnailStripContainer: {
-      position: 'absolute',
-      bottom: 40,
-      height: 80,
-      width: '100%',
-  },
-  thumbnailWrapper: {
-      marginRight: 10,
-      borderWidth: 2,
-      borderColor: 'transparent',
-      borderRadius: 6,
-      overflow: 'hidden',
-  },
-  thumbnailActive: {
-      borderColor: '#E50914',
-  },
-  thumbnailImage: {
-      width: 50,
-      height: 75,
-      backgroundColor: '#222',
-  },
+  creditTitle: { fontFamily: 'GoogleSansFlex-Medium', fontSize: 12, color: '#E5E5E5', marginTop: 8 },
+  creditCharacter: { fontFamily: 'GoogleSansFlex-Regular', fontSize: 11, color: '#8C8C8C', marginTop: 2 },
+  modalContainer: { flex: 1, backgroundColor: '#000000', width: SCREEN_WIDTH, height: SCREEN_HEIGHT },
+  modalHeader: { position: 'absolute', top: 40, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, zIndex: 100 },
+  galleryCounter: { color: 'white', fontFamily: 'GoogleSansFlex-Medium', fontSize: 16 },
+  modalIconBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 20 },
+  thumbnailStripContainer: { position: 'absolute', bottom: 40, height: 80, width: '100%' },
+  thumbnailWrapper: { marginRight: 10, borderWidth: 2, borderColor: 'transparent', borderRadius: 6, overflow: 'hidden' },
+  thumbnailActive: { borderColor: '#E50914' },
+  thumbnailImage: { width: 50, height: 75, backgroundColor: '#222' },
 });

@@ -1,5 +1,4 @@
-import React, { useEffect, useState, useRef, useContext, useCallback } from 'react';
-import { ScrollContext } from '../context/ScrollContext';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
   Dimensions,
@@ -16,7 +15,7 @@ import {
   Linking,
 } from 'react-native';
 import { Text } from 'react-native-paper';
-import { useFocusEffect } from '@react-navigation/native'; // ✅ NEW: Update progress when returning
+import { useFocusEffect } from '@react-navigation/native'; 
 import { 
   getImageUrl, 
   getMovieGenres, 
@@ -28,7 +27,7 @@ import {
   getMediaDetails,
   getExternalIds 
 } from '../src/tmdb';
-import { getProgress } from '../src/utils/progress'; // ✅ NEW: Import progress helper
+import { getProgress } from '../src/utils/progress'; 
 import { useRoute, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
@@ -53,13 +52,6 @@ const HEADER_HEIGHT = height * 0.6;
 const IMAGE_SIZES = { THUMBNAIL: 'w154', POSTER_DETAIL: 'w780', STILL: 'w300', ORIGINAL: 'original' };
 
 // --- COMPONENTS ---
-const AnimatedFooter = () => {
-  const { tabBarVisible, tabBarHeight } = useContext(ScrollContext);
-  const animatedFooterStyle = useAnimatedStyle(() => ({
-    height: withTiming(tabBarVisible ? tabBarHeight : 20, { duration: 300 }),
-  }));
-  return <Animated.View style={animatedFooterStyle} />;
-};
 
 const InfoChip = ({ label, value, icon }: { label: string, value: string, icon: any }) => (
   <View style={styles.infoChipContainer}>
@@ -86,32 +78,26 @@ const DetailPage = () => {
   const [similarMovies, setSimilarMovies] = useState<any[]>([]);
   
   // Progress State
-  const [lastWatched, setLastWatched] = useState<any>(null); // ✅ Stores progress
+  const [lastWatched, setLastWatched] = useState<any>(null); 
 
   const [selectedSeason, setSelectedSeason] = useState<number | null>(null);
   const [episodes, setEpisodes] = useState<TMDBEpisode[]>([]);
   const [loadingEpisodes, setLoadingEpisodes] = useState(false);
   
   const [galleryVisible, setGalleryVisible] = useState(false);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const mainGalleryRef = useRef<FlatList>(null);
-  const thumbnailGalleryRef = useRef<FlatList>(null);
-
+  
   const scrollY = useSharedValue(0);
-  const { setTabBarVisible } = useContext(ScrollContext);
 
   useEffect(() => {
     loadDeepDetails();
   }, [initialMovie.id]);
 
-  // ✅ Check for progress every time the screen comes into focus (e.g., returning from Player)
   useFocusEffect(
     useCallback(() => {
       const checkProgress = async () => {
         const progress = await getProgress(movie.id);
         setLastWatched(progress);
         
-        // If we have progress in a season that isn't loaded, load that season
         if (progress && movie.media_type === 'tv' && progress.lastSeason !== selectedSeason) {
             setSelectedSeason(progress.lastSeason);
             fetchEpisodes(progress.lastSeason);
@@ -139,9 +125,7 @@ const DetailPage = () => {
       setSimilarMovies(similarData);
       setExternalIds(idsData);
 
-      // Initial Season Load Logic
       if (initialMovie.media_type === 'tv' && fullDetails.seasons?.length > 0) {
-        // If we have saved progress, load THAT season. Otherwise, load Season 1.
         const storedProgress = await getProgress(initialMovie.id);
         
         let seasonToLoad = 1;
@@ -169,23 +153,17 @@ const DetailPage = () => {
     finally { setLoadingEpisodes(false); }
   };
 
-  // --- PLAY LOGIC ---
   const handlePlay = (episode?: TMDBEpisode) => {
-    // 1. Determine what to play
     let targetSeason = 1;
     let targetEpisode = 1;
 
     if (episode) {
-        // User clicked specific episode in list
         targetSeason = episode.season_number;
         targetEpisode = episode.episode_number;
     } else if (lastWatched && movie.media_type === 'tv') {
-        // User clicked "Resume" button
         targetSeason = lastWatched.lastSeason;
         targetEpisode = lastWatched.lastEpisode;
     } else if (movie.media_type === 'tv') {
-        // User clicked "Start Series" (no history)
-        // Default to S1 E1 (or first available)
         if(episodes.length > 0) {
             targetSeason = episodes[0].season_number;
             targetEpisode = episodes[0].episode_number;
@@ -200,31 +178,25 @@ const DetailPage = () => {
       season: targetSeason,
       episode: targetEpisode,
       poster: movie.poster_path,
-      // Pass the actual episode object if available for metadata
       episodeName: episode ? episode.name : `Episode ${targetEpisode}`
     };
 
     navigation.navigate('Player', { ...mediaData });
   };
 
-  // ... (Watchlist, Telegram, Share logic remains the same) ...
-  const handleShare = async () => { try { await Share.share({ message: `Check out ${movie.title || movie.name} on Dormamu!`, }); } catch (error) {} };
   const checkIfInWatchlist = async () => { try { const stored = await AsyncStorage.getItem('watchlist'); const list = stored ? JSON.parse(stored) : []; setIsInWatchlist(list.some((item: any) => item.id === movie.id)); } catch (e) {} };
   const toggleWatchlist = async () => { try { const stored = await AsyncStorage.getItem('watchlist'); const list = stored ? JSON.parse(stored) : []; const exists = list.some((item: any) => item.id === movie.id); const newList = exists ? list.filter((item: any) => item.id !== movie.id) : [...list, movie]; await AsyncStorage.setItem('watchlist', JSON.stringify(newList)); setIsInWatchlist(!exists); } catch (e) {} };
   const openTelegramSearch = () => { const title = movie.title || movie.name; const date = movie.release_date || movie.first_air_date; const year = date ? date.substring(0, 4) : ''; const message = encodeURIComponent(`${title} ${year}`); const telegramLink = `tg://msg?text=${message}`; Linking.openURL(telegramLink).catch(err => { const webLink = `https://t.me/share/url?text=${message}`; Linking.openURL(webLink); }); };
   const openTorrentSearch = () => { const query = `${movie.title || movie.name} ${(movie.release_date || movie.first_air_date)?.slice(0, 4) || ''}`; navigation.navigate('Search', { screen: 'SearchMain', params: { prefillQuery: query } }); };
-  const scrollHandler = useAnimatedScrollHandler((event) => { scrollY.value = event.contentOffset.y; if (event.contentOffset.y > 50 && event.velocity && event.velocity.y > 0) { runOnJS(setTabBarVisible)(false); } else if (event.velocity && event.velocity.y < 0) { runOnJS(setTabBarVisible)(true); } });
+  const scrollHandler = useAnimatedScrollHandler((event) => { scrollY.value = event.contentOffset.y; });
   const heroStyle = useAnimatedStyle(() => { const scale = interpolate(scrollY.value, [-100, 0], [1.2, 1], Extrapolate.CLAMP); const opacity = interpolate(scrollY.value, [0, HEADER_HEIGHT * 0.5], [1, 0], Extrapolate.CLAMP); return { transform: [{ scale }], opacity }; });
   const formatCurrency = (value?: number) => { if (!value) return 'N/A'; return value >= 1000000 ? `$${(value / 1000000).toFixed(1)}M` : `$${value.toLocaleString()}`; };
-  const renderGalleryModal = () => { /* ... existing modal code ... */ return <View /> }; // Placeholder for brevity, keep your existing Modal code
 
-  // Helper to generate button text
   const getButtonText = () => {
     if (movie.media_type === 'movie') {
         if (lastWatched) return "Resume Movie";
         return "Watch Movie";
     }
-    // TV Show
     if (lastWatched) {
         return `Resume S${lastWatched.lastSeason}:E${lastWatched.lastEpisode}`;
     }
@@ -240,39 +212,27 @@ const DetailPage = () => {
         
          <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.roundBtn, {overflow: 'hidden'}]}>
             <BlurView 
-          intensity={30}
-          tint='dark'
-          experimentalBlurMethod="dimezisBlurView"
-          style={{
-            ...StyleSheet.absoluteFillObject,
-            borderRadius: 20,
-          }}
-        />
+              intensity={30}
+              tint='dark'
+              experimentalBlurMethod="dimezisBlurView"
+              style={{
+                ...StyleSheet.absoluteFillObject,
+                borderRadius: 20,
+              }}
+           />
             <Ionicons name="arrow-back" size={24} color="#FFF" />
          </TouchableOpacity>
          <View style={{flexDirection: 'row', gap: 10}}>
-            <TouchableOpacity onPress={handleShare} style={[styles.roundBtn, {overflow: 'hidden'}]}>
-              <BlurView 
-          intensity={30}
-          tint='dark'
-          experimentalBlurMethod="dimezisBlurView"
-          style={{
-            ...StyleSheet.absoluteFillObject,
-            borderRadius: 20,
-          }}
-        />
-                <Ionicons name="share-social-outline" size={22} color="#FFF" />
-            </TouchableOpacity>
             <TouchableOpacity onPress={toggleWatchlist} style={[styles.roundBtn, {overflow: 'hidden'}]}>
               <BlurView 
-          intensity={30}
-          tint='dark'
-          experimentalBlurMethod="dimezisBlurView"
-          style={{
-            ...StyleSheet.absoluteFillObject,
-            borderRadius: 20,
-          }}
-        />
+                  intensity={30}
+                  tint='dark'
+                  experimentalBlurMethod="dimezisBlurView"
+                  style={{
+                    ...StyleSheet.absoluteFillObject,
+                    borderRadius: 20,
+                  }}
+                />
                 <MaterialIcons name={isInWatchlist ? "bookmark" : "bookmark-outline"} size={24} color={isInWatchlist ? "#E50914" : "#FFF"} />
             </TouchableOpacity>
          </View>
@@ -282,7 +242,8 @@ const DetailPage = () => {
         onScroll={scrollHandler}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{paddingBottom: 20}}
+        // FIX: Increased paddingBottom to 120 to clear the Floating Tab Bar
+        contentContainerStyle={{paddingBottom: 120}}
       >
         {/* HERO IMAGE */}
         <TouchableOpacity activeOpacity={0.95} onPress={() => setGalleryVisible(true)} style={{ height: HEADER_HEIGHT }}>
@@ -295,35 +256,29 @@ const DetailPage = () => {
                 <View style={styles.metaRow}>
                     <BlurView intensity={30} tint="dark" style={styles.metaChip}>
                       <BlurView 
-          intensity={30}
-          tint='dark'
-          experimentalBlurMethod="dimezisBlurView"
-          style={{
-            ...StyleSheet.absoluteFillObject,
-            borderRadius: 20,
-          }}
-        />
+                        intensity={30}
+                        tint='dark'
+                        experimentalBlurMethod="dimezisBlurView"
+                        style={{...StyleSheet.absoluteFillObject, borderRadius: 20}}
+                      />
                         <Ionicons name="star" size={12} color="#FFD700" />
                         <Text style={styles.metaText}>{movie.vote_average.toFixed(1)}</Text>
                     </BlurView>
                     <BlurView intensity={30} tint="dark" style={styles.metaChip}>
                       <BlurView 
-          intensity={30}
-          tint='dark'
-          experimentalBlurMethod="dimezisBlurView"
-          style={{
-            ...StyleSheet.absoluteFillObject,
-            borderRadius: 20,
-          }}
-        />
+                        intensity={30}
+                        tint='dark'
+                        experimentalBlurMethod="dimezisBlurView"
+                        style={{...StyleSheet.absoluteFillObject, borderRadius: 20}}
+                      />
                         <Text style={styles.metaText}>{(movie.release_date || movie.first_air_date)?.split('-')[0] || 'N/A'}</Text>
                     </BlurView>
-                    {movie.runtime && (<BlurView intensity={30} tint="dark" style={styles.metaChip}><Text style={styles.metaText}>{Math.floor(movie.runtime/60)}h {movie.runtime%60}m</Text></BlurView>)}
+                    {movie.runtime > 0 && (<BlurView intensity={30} tint="dark" style={styles.metaChip}><Text style={styles.metaText}>{Math.floor(movie.runtime/60)}h {movie.runtime%60}m</Text></BlurView>)}
                 </View>
                 
                 {movie.tagline && <Text style={styles.tagline}>"{movie.tagline}"</Text>}
                 
-                {/* ✅ SMART WATCH BUTTON */}
+                {/* ACTION BUTTONS */}
                 <View style={styles.actionButtonContainer}>
                   <TouchableOpacity 
                     style={styles.watchNowBtn} 
@@ -336,27 +291,9 @@ const DetailPage = () => {
 
                   <View style={styles.secondaryActions}>
                     <TouchableOpacity onPress={openTelegramSearch} style={[styles.iconBtn,{overflow: 'hidden'}]}>
-                        <BlurView 
-                          intensity={30}
-                          tint='dark'
-                          experimentalBlurMethod="dimezisBlurView"
-                          style={{
-                            ...StyleSheet.absoluteFillObject,
-                            borderRadius: 20,
-                          }}
-                        />
                         <Ionicons name="paper-plane-outline" size={22} color="#fff" />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={openTorrentSearch} style={[styles.iconBtn,{overflow: 'hidden'}]}>
-                      <BlurView 
-          intensity={30}
-          tint='dark'
-          experimentalBlurMethod="dimezisBlurView"
-          style={{
-            ...StyleSheet.absoluteFillObject,
-            borderRadius: 20,
-          }}
-        />
                         <Feather name="download" size={22} color="#fff" />
                     </TouchableOpacity>
                   </View>
@@ -420,7 +357,7 @@ const DetailPage = () => {
                 </View>
             )}
 
-            {/* ✅ UPDATED SEASONS & EPISODES UI */}
+            {/* SEASONS & EPISODES UI */}
             {movie.media_type === 'tv' && movie.seasons && (
                 <View style={styles.section}>
                     <View style={styles.rowBetween}>
@@ -444,7 +381,6 @@ const DetailPage = () => {
                     {loadingEpisodes ? <ActivityIndicator color="#E50914" /> : (
                         <View style={{gap: 10}}>
                             {episodes.map(ep => {
-                                // Check if this episode is the one currently "in progress"
                                 const isActive = lastWatched && lastWatched.lastSeason === ep.season_number && lastWatched.lastEpisode === ep.episode_number;
 
                                 return (
@@ -458,7 +394,6 @@ const DetailPage = () => {
                                           source={{ uri: ep.still_path ? getImageUrl(ep.still_path, IMAGE_SIZES.STILL) : 'https://via.placeholder.com/100' }} 
                                           style={styles.episodeThumb} 
                                       />
-                                      {/* Play Icon Overlay */}
                                       <View style={styles.playOverlay}>
                                         <Ionicons name="play" size={20} color="white" />
                                       </View>
@@ -500,9 +435,8 @@ const DetailPage = () => {
                 </View>
             )}
         </View>
-        <AnimatedFooter />
+        
       </Animated.ScrollView>
-      {/* Kept your modal logic here if needed */}
     </View>
   );
 };
@@ -534,10 +468,10 @@ const FONTS = {
 };
 
 const styles = StyleSheet.create({
-  // Container & Header
   baseContainer: {
     flex: 1,
     backgroundColor: COLORS.background,
+    
   },
   fixedHeader: {
     position: 'absolute',
@@ -550,7 +484,7 @@ const styles = StyleSheet.create({
     zIndex: 100,
   },
   roundBtn: {
-    width: 50,
+    width: 70,
     height: 50,
     borderRadius: 50,
     backgroundColor: 'transparent',
@@ -559,8 +493,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
-
-  // Hero content & meta
   heroContent: {
     position: 'absolute',
     bottom: 20,
@@ -602,8 +534,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: FONTS.bold,
   },
-
-  // Primary action buttons
   actionButtonContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -639,13 +569,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-
-  // Content area
   contentContainer: {
     padding: SPACING.lg,
   },
-
-  // Info Grid
   infoGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -675,8 +601,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: FONTS.medium,
   },
-
-  // Sections & typography
   section: {
     marginBottom: 24,
   },
@@ -697,8 +621,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginTop: 4,
   },
-
-  // Genres
   genreTag: {
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -713,8 +635,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: FONTS.medium,
   },
-
-  // Cast list
   castCard: {
     width: 100,
     marginRight: 12,
@@ -738,8 +658,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     textAlign: 'center',
   },
-
-  // Similar items
   similarCard: {
     width: 120,
     marginRight: 12,
@@ -773,16 +691,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: FONTS.medium,
   },
-
-  // Row helpers
   rowBetween: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
   },
-
-  // Seasons
   seasonCount: {
     color: '#666',
     fontSize: 12,
@@ -804,8 +718,6 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: 'bold',
   },
-
-  // Episodes (updated styles)
   episodeRow: {
     flexDirection: 'row',
     gap: 12,

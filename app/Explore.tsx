@@ -5,10 +5,8 @@ import React, {
   useCallback,
   memo,
   useRef,
-  useContext,
   useMemo,
 } from 'react';
-import { ScrollContext } from '../context/ScrollContext';
 import {
   View,
   Text,
@@ -414,16 +412,7 @@ const GenreSearchItem = memo(({ genre, onPress }: any) => (
   </TouchableOpacity>
 ));
 
-const AnimatedFooter = memo(() => {
-  const { tabBarVisible, tabBarHeight } = useContext(ScrollContext);
-  const animatedFooterStyle = useAnimatedStyle(() => ({
-    height: withTiming(tabBarVisible ? tabBarHeight : SPARE_BOTTOM_SPACE, {
-      duration: 300,
-      easing: Easing.inOut(Easing.ease),
-    }),
-  }));
-  return <Animated.View style={animatedFooterStyle} />;
-});
+
 
 // --- 7. MAIN EXPLORE PAGE ---
 const ExplorePage = () => {
@@ -446,7 +435,6 @@ const ExplorePage = () => {
   });
 
   const navigation = useNavigation();
-  const { setTabBarVisible } = useContext(ScrollContext);
   const lastScrollY = useRef(0);
   const searchTimeout = useRef<any>(null);
 
@@ -486,18 +474,6 @@ const ExplorePage = () => {
       return () => subscription.remove();
     }, [query])
   );
-
-  const handleScrollChange = useCallback((event: any) => {
-    const currentScrollY = event.nativeEvent.contentOffset.y;
-    if (currentScrollY < SCROLL_THRESHOLD) {
-      setTabBarVisible(true);
-      lastScrollY.current = currentScrollY;
-      return;
-    }
-    const delta = currentScrollY - lastScrollY.current;
-    if (Math.abs(delta) > 10) setTabBarVisible(delta < 0);
-    lastScrollY.current = currentScrollY;
-  }, [setTabBarVisible]);
 
   const handleSearch = useCallback(async (searchText: string) => {
     const trimmed = searchText.trim();
@@ -591,7 +567,7 @@ const ExplorePage = () => {
             )}
           </>
         )}
-        <AnimatedFooter />
+        
       </ScrollView>
     );
   }, [searchLoading, tmdbResults, peopleResults, genreResults, query, navigation]);
@@ -635,7 +611,6 @@ const ExplorePage = () => {
 
       {inSearchMode ? renderSearchContent : (
         <AnimatedScrollView
-          onScroll={handleScrollChange}
           scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
@@ -670,7 +645,7 @@ const ExplorePage = () => {
           <MediaCarousel title="Malayalam Web Series" data={allContent.malayalamTV} navigation={navigation} isLoading={contentLoading} />
           <MediaCarousel title="Tamil Movies" data={allContent.tamilMovies} navigation={navigation} isLoading={contentLoading} />
 
-          <AnimatedFooter />
+          
         </AnimatedScrollView>
       )}
     </View>
