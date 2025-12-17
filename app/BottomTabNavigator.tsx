@@ -1,24 +1,17 @@
 // BottomTabNavigator.tsx
-import React, { useEffect, createContext, useState } from 'react';
+import React from 'react';
 import { createBottomTabNavigator, BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform, Dimensions, View, StyleSheet, TouchableOpacity } from 'react-native';
-// Reanimated imports
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  Easing,
-} from 'react-native-reanimated';
+
+import { BlurView } from 'expo-blur';
 
 // Import your existing tab screens
 import History from '../app/history';
 import Explore from './Explore';
 import Index from '../app/index';
 import WatchListPage from '../app/WatchListPage';
-import Profile from '../app/Profile';
-import Settings from '../app/Settings';
 
 // Import your detail screens
 import DetailPage from './DetailPage';
@@ -34,18 +27,7 @@ const Stack = createNativeStackNavigator();
 const DOCK_MARGIN_BOTTOM = Platform.OS === 'ios' ? 30 : 20;
 const TAB_BAR_HEIGHT = 70; // Fixed height for the pill
 
-// --- 1. SCROLL CONTEXT ---
-interface ScrollContextProps {
-  tabBarVisible: boolean;
-  setTabBarVisible: (visible: boolean) => void;
-  tabBarHeight: number;
-}
 
-const ScrollContext = createContext<ScrollContextProps>({
-  tabBarVisible: true,
-  setTabBarVisible: () => {},
-  tabBarHeight: TAB_BAR_HEIGHT + DOCK_MARGIN_BOTTOM,
-});
 
 // --- STACK OPTIONS ---
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -53,14 +35,14 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const stackScreenOptions = {
     headerShown: false,
     cardStyle: { backgroundColor: '#000' },
-    animation: 'fade',
+    animation: 'slide_from_right',
     fullScreenGestureEnabled: true,
     keyboardHandlingEnabled: true,
     presentation: 'card',
     animationEnabled: true,
     gestureDirection: 'horizontal',
     contentStyle: { backgroundColor: '#000' },
-    animationDuration: 200,
+    // animationDuration: 222000,
     freezeOnBlur: true,
     detachPreviousScreen: false,
     cardOverlayEnabled: true,
@@ -135,27 +117,19 @@ const ExploreStack = () => (
 // --- 2. CUSTOM TAB BAR ---
 const CustomTabBar: React.FC<BottomTabBarProps> = (props) => {
   const { state, navigation, descriptors } = props;
-  const { tabBarVisible } = React.useContext(ScrollContext);
-  
-  const translateY = useSharedValue(0); 
-
-  useEffect(() => {
-    translateY.value = withTiming(tabBarVisible ? 0 : TAB_BAR_HEIGHT + DOCK_MARGIN_BOTTOM + 20, {
-      duration: 300,
-      easing: Easing.inOut(Easing.ease),
-    });
-  }, [tabBarVisible, translateY]);
-  
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ translateY: translateY.value }],
-    };
-  });
 
   return (
-    <Animated.View style={[localStyles.container, animatedStyle]}>
-        {/* Background View (Gray) */}
-        <View style={localStyles.backgroundView} />
+    <View style={localStyles.container}>
+        {/* Blur Background */}
+        <BlurView 
+          intensity={60}
+          tint='dark'
+          experimentalBlurMethod="dimezisBlurView"
+          style={{
+            ...StyleSheet.absoluteFillObject,
+            borderRadius: 40,
+          }}
+        />
         
         {/* Icons Container */}
         <View style={localStyles.tabBarInner}>
@@ -196,7 +170,7 @@ const CustomTabBar: React.FC<BottomTabBarProps> = (props) => {
                 );
             })}
         </View>
-    </Animated.View>
+    </View>
   );
 };
 
@@ -209,18 +183,13 @@ const localStyles = StyleSheet.create({
         right: 50,
         height: TAB_BAR_HEIGHT,
         borderRadius: 40, // Pill shape
-        elevation: 5,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
         justifyContent: 'center', // Centers the inner view vertically
-    },
-    backgroundView: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: '#000000ff', // Dark Gray
-        opacity: 0.95, // Slight transparency
-        borderRadius: 40,
+        overflow: 'hidden',
+        borderColor: 'rgba(255, 255, 255, 0.3)',
+        borderLeftWidth: 0.5,
+        borderTopWidth: 0.5,
+        borderRightWidth: 0.5,
+        borderBottomWidth: 0.5,
     },
     tabBarInner: {
         flexDirection: 'row',
@@ -239,16 +208,7 @@ const localStyles = StyleSheet.create({
 
 // --- 4. ROOT COMPONENT ---
 const RootTabNavigator = () => {
-    const [tabBarVisible, setTabBarVisible] = useState(true);
-    
-    const contextValue = React.useMemo(() => ({
-        tabBarVisible,
-        setTabBarVisible,
-        tabBarHeight: TAB_BAR_HEIGHT + DOCK_MARGIN_BOTTOM,
-    }), [tabBarVisible]);
-
     return (
-        <ScrollContext.Provider value={contextValue}>
             <Tab.Navigator
                 tabBar={props => <CustomTabBar {...props} />}
                 screenOptions={({ route }) => ({
@@ -267,14 +227,12 @@ const RootTabNavigator = () => {
                     },
                     headerShown: false,
                     tabBarShowLabel: false, 
-                    tabBarHideOnKeyboard: false, 
-                })}
-            >
+                    tabBarHideOnKeyboard: false,
+                })}>
                 <Tab.Screen name="Explore" component={ExploreStack} />
                 <Tab.Screen name="Watchlist" component={WatchlistStack} />
                 <Tab.Screen name="Search" component={SearchStack} />
             </Tab.Navigator>
-        </ScrollContext.Provider>
     );
 };
 

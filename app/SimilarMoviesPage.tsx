@@ -170,6 +170,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: width * 0.045,
     fontWeight: 'bold',
+    fontFamily: 'GoogleSansFlex-Bold',
     flex: 1,
     textAlign: 'center',
   },
@@ -198,10 +199,12 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: width * 0.035,
     fontWeight: '600',
+    fontFamily: 'GoogleSansFlex-Medium',
   },
   movieYear: {
     color: '#aaa',
     fontSize: width * 0.03,
+    fontFamily: 'GoogleSansFlex-Regular',
     marginVertical: 2,
   },
   ratingContainer: {
@@ -211,6 +214,7 @@ const styles = StyleSheet.create({
   rating: {
     color: '#aaa',
     fontSize: width * 0.03,
+    fontFamily: 'GoogleSansFlex-Regular',
     marginLeft: 4,
   },
   footer: {

@@ -1,9 +1,8 @@
 // ViewAllPage.tsx
-import React, { useEffect, useState, useContext, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Image, StatusBar } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { FlashList } from '@shopify/flash-list';
-import { ScrollContext } from '../context/ScrollContext';
 import { getMoviesByGenre, getImageUrl, getFullDetails, TMDBResult } from '../src/tmdb';
 import Animated, { 
   useAnimatedStyle,
@@ -15,20 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 const SCROLL_THRESHOLD = 50;
 const SPARE_BOTTOM_SPACE = 20;
 
-// --- Animated Footer Component ---
-const AnimatedFooter = () => {
-  const { tabBarVisible, tabBarHeight } = useContext(ScrollContext);
-  const animatedFooterStyle = useAnimatedStyle(() => {
-    return {
-      height: withTiming(tabBarVisible ? tabBarHeight : SPARE_BOTTOM_SPACE, {
-        duration: 300,
-        easing: Easing.inOut(Easing.ease),
-      }),
-    };
-  });
-  return <Animated.View style={animatedFooterStyle} />;
-};
-// --- End Footer ---
+
 
 const ViewAllPage = () => {
   const navigation = useNavigation();
@@ -48,7 +34,6 @@ const ViewAllPage = () => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true); // Tracks if more pages are available
   
-  const { setTabBarVisible, tabBarHeight } = useContext(ScrollContext);
   const lastScrollY = useRef(0);
 
   useEffect(() => {
@@ -105,19 +90,7 @@ const ViewAllPage = () => {
     }
   };
 
-  const handleScrollChange = (event: any) => {
-    const currentScrollY = event.nativeEvent.contentOffset.y;
-    if (currentScrollY < SCROLL_THRESHOLD) {
-      setTabBarVisible(true);
-      lastScrollY.current = currentScrollY;
-      return;
-    }
-    const delta = currentScrollY - lastScrollY.current;
-    if (Math.abs(delta) > 10) {
-      setTabBarVisible(delta < 0);
-    }
-    lastScrollY.current = currentScrollY;
-  };
+
 
   const renderMovieCard = ({ item }: { item: TMDBResult }) => (
     <TouchableOpacity
@@ -147,8 +120,7 @@ const ViewAllPage = () => {
         </View>
       );
     }
-    // Always render the AnimatedFooter for spacing
-    return <AnimatedFooter />;
+    return null;
   };
 
   return (
@@ -174,7 +146,6 @@ const ViewAllPage = () => {
           numColumns={3}
           estimatedItemSize={200}
           contentContainerStyle={styles.listContent}
-          onScroll={handleScrollChange}
           scrollEventThrottle={16}
           // --- FIX: Added pagination props ---
           onEndReached={loadMoreMovies}
@@ -208,6 +179,7 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 20,
     fontWeight: 'bold',
+    fontFamily: 'GoogleSansFlex-Bold',
   },
   loadingContainer: {
     flex: 1,
@@ -231,6 +203,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     color: '#E5E5EV', // Typo fixed
     fontSize: 13,
+    fontFamily: 'GoogleSansFlex-Regular',
     marginTop: 6,
   },
   // --- FIX: Added style for the new footer loader ---

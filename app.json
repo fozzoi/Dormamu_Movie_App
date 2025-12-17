@@ -1,33 +1,35 @@
 {
   "expo": {
-    "name": "Dormamu",
-    "slug": "Dormamu",
-    "version": "2.5.0",
+    "name": "Watcher",
+    "slug": "Watcher",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "myapp",
     "jsEngine": "hermes",
-    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "androidNavigationBar": {
       "barStyle": "dark-content",
       "backgroundColor": "#000000"
     },
     "android": {
+      
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#000000"
       },
       "jsEngine": "hermes",
-      "package": "com.Dormamu"
+      "package": "com.thewatcher"
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "assets/adaptive-icon.png"
     },
     "plugins": [
+      
       "expo-router",
+      "expo-brightness",
       [
         "expo-splash-screen",
         {
@@ -37,7 +39,8 @@
           "backgroundColor": "#000000"
         }
       ],
-      "react-native-edge-to-edge"
+      "react-native-edge-to-edge",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
@@ -47,11 +50,11 @@
         "origin": false
       },
       "eas": {
-        "projectId": "592c63ff-f6ab-4bb0-9b5c-cf1b89eb6259"
+        "projectId": "a208162b-f69c-4bc1-969b-d670ee577a01"
       }
     },
     "ios": {
-      "bundleIdentifier": "com.Dormamu"
+      "bundleIdentifier": "com.WatcherApp"
     }
   }
 }
