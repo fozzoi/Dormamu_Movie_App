@@ -175,7 +175,7 @@ export default function CastDetails() {
     const imageUrl = getImageUrl(currentImgPath, 'original');
     try {
       await Share.share({
-        message: `Check out ${person?.name}! Shared from Dormamu app. ${imageUrl}`,
+        message: `Check out ${person?.name}! Shared from Watcher app. ${imageUrl}`,
         url: imageUrl,
       });
     } catch (error) {

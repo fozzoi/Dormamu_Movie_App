@@ -9,7 +9,6 @@ import { PanGestureHandler, GestureHandlerRootView } from 'react-native-gesture-
 import Animated, { runOnJS } from 'react-native-reanimated';
 import { saveProgress } from '../src/utils/progress';
 
-// --- CONFIGURATION ---
 const SOURCES = [
   { name: 'VidSrc CC', url: 'https://vidsrc.cc/v2/embed' },
   { name: 'VidSrc TO', url: 'https://vidsrc.to/embed' },
@@ -36,33 +35,70 @@ export default function Player() {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const indicatorTimer = useRef<NodeJS.Timeout | null>(null);
 
+  // --- NUCLEAR CSS FIX ---
+  // 1. Forces iframe/video to z-index: 0
+  // 2. Forces controls to z-index: 2147483647 (Max integer)
+  // 3. Resets pointer-events so you can actually click the buttons
   const INJECTED_JS = `
     (function() {
+      // Prevent popups
       window.open = function() { return null; };
+      
       const style = document.createElement('style');
       style.innerHTML = \`
-        html, body { margin: 0; padding: 0; background: black; overflow: hidden; }
-        #player, .player, video, iframe, .jwplayer {
-          position: fixed !important; top: 0 !important; left: 0 !important;
-          width: 100% !important; height: 100% !important; z-index: 9999 !important;
+        /* 1. Global Reset */
+        html, body { 
+          margin: 0 !important; 
+          padding: 0 !important; 
+          background: #000 !important; 
+          overflow: hidden !important; 
         }
-        .ad-overlay, .jw-logo, .server-list, .watermark, div[id*="ads"] { display: none !important; }
+
+        /* 2. The Video Layer (Send to Back) */
+        video, iframe, .video-js, .jw-video {
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100% !important;
+          height: 100% !important;
+          z-index: 0 !important; 
+          object-fit: contain !important;
+        }
+
+        /* 3. The Control Layer (Bring to Front) */
+        .jw-control-bar, .vjs-control-bar, .plyr__controls, .controls-layer, .bmpui-ui-layer {
+          display: flex !important;
+          opacity: 1 !important;
+          visibility: visible !important;
+          z-index: 2147483647 !important; /* Absolute Top */
+          pointer-events: auto !important;
+        }
+
+        /* 4. Kill Ads/Overlays */
+        .ad-overlay, .jw-logo, .server-list, .watermark, div[id*="ads"], .sandbox-ad { 
+          display: none !important; 
+          pointer-events: none !important;
+        }
       \`;
       document.head.appendChild(style);
+
+      /* Cleanup Loop */
       setInterval(function() {
-        var popups = document.querySelectorAll('div[style*="z-index: 2147483647"], iframe[src*="google"]');
-        popups.forEach(function(el) { el.remove(); });
-      }, 800);
+        const popups = document.querySelectorAll('div[style*="z-index: 2147483647"], iframe[src*="google"]');
+        popups.forEach(el => {
+            // Be careful not to delete controls
+            if (!el.className.match(/control|ui-layer/)) {
+                el.remove();
+            }
+        });
+      }, 1000);
     })();
     true;
   `;
 
   useEffect(() => {
     ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
-    
-    // ✅ FIX: Only GET brightness, do not ASK for permission here
     getInitialBrightness();
-    
     handleSaveProgress();
     
     return () => {
@@ -75,11 +111,10 @@ export default function Player() {
 
   const getInitialBrightness = async () => {
     try {
-      // Just check current level. If permission is missing, this might return default or fail silently
       const cur = await Brightness.getBrightnessAsync();
       setBrightnessLevel(cur);
     } catch (e) {
-      console.log("Could not get brightness (Permission likely missing)");
+      // Silently fail if permission missing
     }
   };
 
@@ -111,7 +146,7 @@ export default function Player() {
     let newLevel = brightnessLevel + delta;
     newLevel = Math.min(1, Math.max(0, newLevel));
     
-    // ✅ Safe set: This will simply do nothing if permission wasn't granted at app start
+    // Will only work if permission granted in RootLayout
     Brightness.setBrightnessAsync(newLevel).catch(() => {});
     
     setBrightnessLevel(newLevel);

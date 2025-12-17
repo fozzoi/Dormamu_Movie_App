@@ -1,4 +1,4 @@
-package com.Dormamu
+package com.thewatcher
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build
